@@ -1,6 +1,6 @@
 # Retail inventory UI/UX specification
 
-Status: design and review reference. Product catalog, selected-location stock page, receive/manual sale-deduction forms, and filtered activity page are implemented for local development. A dashboard, returns/adjustments UI, and authentication remain proposals. This document retains recommended behavior beyond what the current screens implement; runtime DB verification and screenshot review are pending migrations 004/005 and owner-side database access.
+Status: design and review reference. Product catalog, selected-location stock page, receive/manual sale-deduction forms, and filtered activity page are implemented for local development. A dashboard, returns/adjustments UI, and authentication remain proposals. This document retains recommended behavior beyond what the current screens implement; the owner reported a passing rollback-only database verification, while runtime concurrency and screenshot review remain open.
 
 ## Product principles
 
@@ -57,7 +57,7 @@ A location selector scopes the current `/stock` page; `/activity` can filter to 
 
 ## Receive stock flow
 
-**Implemented on `/stock` (local development only).** The current form selects a location and active product, accepts positive whole units and a required 1–300 character reason, previews the change, and shows a success or validation/stock error. The action passes a generated request UUID and NULL actor ID. The database function requires an active product and serializes the balance update. Runtime integration remains pending owner application of migrations 004/005 and execution of `npm run db:verify-stock`. Reorder attention compares each location's quantity with the product-level reorder point; the schema does not define a separate threshold per location.
+**Implemented on `/stock` (local development only).** The current form selects a location and active product, accepts positive whole units and a required 1–300 character reason, previews the change, and shows a success or validation/stock error. The action passes a generated request UUID and NULL actor ID. The database function requires an active product and serializes the balance update. The owner reported that migrations 004/005 and `npm run db:verify-stock` succeeded. Reorder attention compares each location's quantity with the product-level reorder point; the schema does not define a separate threshold per location.
 
 1. Start from dashboard, Stock, a low-stock row, or product detail.
 2. Select product (search by SKU/name), location, and positive whole-unit quantity. Enter a reason/reference note if the final API supports it; show concise suggestions such as “Supplier delivery” without forcing invented supplier data.

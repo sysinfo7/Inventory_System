@@ -4,7 +4,7 @@
 
 The app includes a local product catalog, stock page, and activity page. The catalog supports search, active/inactive filters, add/edit, and deactivate. `/stock` shows current balances for active products at the selected location, flags quantities at or below each product's reorder point, and provides receive and manual sale-deduction forms. `/activity` filters and lists recent signed movement rows. Returns, adjustments, authentication, and a separate dashboard remain planned.
 
-The owner reported migrations 003 and `inventory_runtime` provisioning succeeded. Migrations 004 and 005 remain pending and must be applied for the latest location seed and active-product database guard. Runtime stock behavior has not been verified against the owner's database.
+Migrations through 007 are applied to the current local database. The rollback-only stock workflow verification passed. The current demo contains two locations, three fictional products, and eight audited movement rows; the sample data is recreated after a clean reset.
 
 ## Start the local project
 
@@ -33,7 +33,7 @@ npm run db:verify-stock
 npm run dev
 ```
 
-The owner reported migrations 003 and app-role provisioning succeeded, so those steps may report that no work is needed. Migrations 004/005 are pending. `db:verify-stock` checks receipt, sale, idempotent retry, conflicting request token, oversell rejection, inactive product rejection, resulting balance, and blank-actor audit rows in a single transaction that is rolled back. This script has not been run against the owner's DB. The app and PostgreSQL bind to loopback for local use. Open [http://127.0.0.1:3000](http://127.0.0.1:3000). See [DATABASE.md](DATABASE.md) for migration, role, backup, restore, and destructive reset details.
+`db:verify-stock` checks receipt, sale, idempotent retry, conflicting request token, oversell rejection, inactive product rejection, resulting balance, and blank-actor audit rows in a single transaction that is rolled back. It passed against the current local database. The app and PostgreSQL bind to loopback for local use. Open [http://127.0.0.1:3000](http://127.0.0.1:3000). See [DATABASE.md](DATABASE.md) for migration, role, backup, restore, and destructive reset details.
 
 Stop the web server with `Ctrl+C`. To stop PostgreSQL while keeping local data, run:
 
@@ -58,6 +58,8 @@ Authentication and authorization are not implemented. Catalog, stock, and activi
 ## Stock on hand and recording a movement
 
 Open `/stock`. Choose a location and select **Show stock** to view active products, current on-hand counts, reorder points, and reorder attention for that location. Reorder attention means the location's current on-hand quantity is at or below the product's reorder point; it does not include reservations or open orders.
+
+The local demo has two locations. **Demo Outlet** has 10 coffee units and 13 trail-mix units. **Demo Store** has 7 coffee units and 8 water bottles. All other sample product/location balances start at zero. The three sample items are Northstar Coffee Beans, Crisp Orchard Trail Mix, and Summit Steel Water Bottle; their SKUs start with `DEMO-`.
 
 To receive stock or record a manual sale deduction, choose the location and active product, enter a positive whole number of units, and provide a reason. Review the movement preview before submitting. The receiving action adds units; the sale action stores a negative quantity delta. If the sale would make stock negative, the database rejects it and the page reports the latest available quantity. Inactive products cannot receive new movements after migration 005 is applied. Each submission uses a request UUID so an identical retry does not create a duplicate movement.
 
@@ -86,11 +88,11 @@ flowchart TD
     K --> L[Return movement ID]
 ```
 
-The database workflow is implemented, but the latest migrations and transaction checks still require owner-side application/runtime verification. No concurrent deductions were tested at runtime. The blank actor cannot identify who performed the action.
+The database workflow and rollback-only transaction check have been exercised. The sample data includes eight movements across both locations (four receiving entries and four sale deductions); filtering activity to Demo Store returns four rows. No concurrent deductions were tested at runtime. The blank actor cannot identify who performed the action.
 
 ## Screenshots still needed
 
-No real screenshots have been captured because the available browser preview could not reach the local app. Capture these views from the running app after migrations 004/005 are applied and the UI is reviewed with fictional data:
+Repository screenshots have not yet been saved. The local app is now reachable with fictional sample data and migrations through 007 applied; capture these views from the running app:
 
 | File | Required capture |
 | --- | --- |

@@ -6,7 +6,7 @@ A portfolio project for a small retail business to manage products and record st
 
 The repository includes a local product catalog, stock-on-hand page, and movement activity page. The catalog supports search, add, edit, and deactivate. The stock page shows active product balances and reorder attention for a selected location, and provides receiving and manual sale-deduction forms. The activity page filters and lists signed movement rows. These app routes and writes are local-development only while authentication is absent; the current app passes a null actor ID.
 
-Migrations 004 and 005 add a default `Demo Store` only when the database has no locations and enforce active-product status inside the stock function. The owner reported migration 003 and runtime-role provisioning succeeded; migrations 004/005 remain pending and were not independently applied here. The web workflows are implemented in code, but database integration remains unverified until the owner upgrades the local database and runs `npm run db:verify-stock`.
+Migrations 004–007 seed `Demo Store`, `Demo Outlet`, and three fictional retail products with audited receiving and manual-sale history. Migration 005 enforces active-product status inside the stock function. The local database is current through migration 007, its connection check passed, and the rollback-only `npm run db:verify-stock` check passed; see [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -27,7 +27,7 @@ npm run dev
 
 The local helper creates a separate 256-bit app password in `.env` without displaying it, and refuses to replace an existing app URL. The web app binds to `127.0.0.1`; do not change it to a public interface. PostgreSQL is published to the local machine at port 5433. Never commit or share `.env` or database backups.
 
-`db:verify-stock` exercises receiving, sale deduction, matching idempotent retry, conflicting request-token rejection, oversell rejection, inactive-product rejection, resulting balance, and blank-actor audit rows. It runs its writes in one transaction and rolls them back. It requires the latest migrations and a working `APP_DATABASE_URL`; it has not been run against the owner's database.
+`db:verify-stock` exercises receiving, sale deduction, matching idempotent retry, conflicting request-token rejection, oversell rejection, inactive-product rejection, resulting balance, and blank-actor audit rows. It runs its writes in one transaction and rolls them back. It requires the latest migrations and a working `APP_DATABASE_URL`.
 
 ## Project documentation
 
@@ -53,7 +53,7 @@ npm run db:provision-app
 npm run db:verify-stock
 ```
 
-GitHub Actions is configured to run code checks and migration commands. CI success has not yet been verified for the current migrations. Local `typecheck`, `lint`, verification-script syntax, and `git diff --check` passed for the stock workflow; production build, database integration, concurrency runtime behavior, and screenshots remain unverified.
+GitHub Actions is configured to run code checks and migration commands. CI success has not yet been verified for the current migrations. Local typecheck, lint, owner-reported stock workflow verification, local database connection, and two-location activity filtering have been checked. Production build and concurrent deduction behavior remain unverified.
 
 ## Security boundary
 

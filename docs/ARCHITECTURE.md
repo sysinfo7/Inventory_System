@@ -116,7 +116,7 @@ record_stock_movement(product, location, delta, type, reason, actor?, request?, 
 
 ## Database role boundary and limits
 
-Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migration 003 grants it execution of `save_product`, not direct catalog table writes. It transfers stock, product, and audit security-definer routines to `inventory_function_owner`, a no-login role with only the table/sequence grants needed by those routines. `scripts/provision-app-role.mjs` provisions `inventory_runtime` with a separate password and only the `inventory_app` membership. Migration credentials remain in `DATABASE_URL`; app reads/writes use `APP_DATABASE_URL`. The owner reported that migration 003 and runtime-role provisioning succeeded; migrations 004 and 005 remain pending and were not independently applied here.
+Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migration 003 grants it execution of `save_product`, not direct catalog table writes. It transfers stock, product, and audit security-definer routines to `inventory_function_owner`, a no-login role with only the table/sequence grants needed by those routines. `scripts/provision-app-role.mjs` provisions `inventory_runtime` with a separate password and only the `inventory_app` membership. Migration credentials remain in `DATABASE_URL`; app reads/writes use `APP_DATABASE_URL`. The local database has applied migrations through 007 and the connection check passed.
 
 The security-definer functions run with `inventory_function_owner` privileges and fix their `search_path` to `pg_catalog, public, pg_temp`, with the temporary schema last. This is a useful boundary for the intended local application role, not a claim of production-grade security. Database owners/superusers can change functions, triggers, or data. There is no authentication in the application, and both catalog and stock actions currently use blank actor attribution. Product, stock, and activity workflows must not be exposed beyond local development.
 
@@ -126,7 +126,7 @@ The movement and audit tables can support an inventory history of quantity chang
 
 ## Screenshot evidence
 
-Screenshots are pending. The current browser preview could not reach the running local app, so no real application capture was available. Capture these exact views from a running app after the owner applies migrations 004/005 and a browser is available:
+Screenshots are pending. The local app is now reachable with fictional sample data. Capture these views from the running app:
 
 1. `docs/screenshots/home-desktop.png` — current project-status landing page at desktop width.
 2. `docs/screenshots/home-mobile.png` — current landing page at a narrow mobile viewport.

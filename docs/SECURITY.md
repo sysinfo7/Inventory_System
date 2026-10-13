@@ -15,7 +15,7 @@
 - The stock and product functions use `SECURITY DEFINER` with a restricted `inventory_function_owner` role that has no login and only the required table/sequence grants. Their fixed path is `pg_catalog, public, pg_temp`, with the temporary schema last. Product form writes pass through the validation function and existing audit triggers.
 - `scripts/provision-app-role.mjs` creates or updates a local `inventory_runtime` login, removes elevated role attributes, rejects unexpected memberships, and grants membership only in `inventory_app`. The app uses `APP_DATABASE_URL`; migration tools use the more privileged `DATABASE_URL`.
 
-These are data-integrity controls in the current schema, not proof of a production security posture. The owner reported migrations 003 and `inventory_runtime` provisioning succeeded. Migrations 004/005 are pending and require an owner-side local upgrade. The migrations do not configure production credentials, a secret manager, TLS, production network policy, deployment role, or access monitoring.
+These are data-integrity controls in the current schema, not proof of a production security posture. The local database has migrations through 007 applied, `inventory_runtime` provisioning was previously reported, and the stock-workflow check passed. The migrations do not configure production credentials, a secret manager, TLS, production network policy, deployment role, or access monitoring.
 
 ## Authentication and attribution limitations
 
@@ -39,4 +39,4 @@ Before exposing the app beyond local development, implement authentication and a
 
 ## Evidence status
 
-The owner reported migration 003 and `inventory_runtime` provisioning succeeded. Migrations 004/005 still need to be applied locally; this agent cannot connect to PostgreSQL on port `5433`. `npm run db:verify-stock` has not been run against the owner database. GitHub Actions success has not been verified. Atlas reports TypeScript, lint, verification-script syntax, and `git diff --check` passed; database integration, runtime concurrency checks, and production security review remain outstanding.
+Migrations through 007, the local PostgreSQL connection, and `npm run db:verify-stock` have been verified. The check rolled back its test data. GitHub Actions success, runtime concurrency checks, and production security review remain outstanding.

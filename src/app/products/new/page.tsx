@@ -28,7 +28,7 @@ async function NewProductContent() {
       <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/products">Products</Link><span aria-hidden="true">/</span><span>Add product</span></nav>
       <div className="editor-heading"><p className="eyebrow">Catalog / New item</p><h1>Add a product</h1><p>Enter the details you use to identify and reorder this item.</p></div>
       <section className="editor-panel"><ProductForm product={null} categories={categories} /></section>
-      <p className="catalog-footnote">Adding a product does not create stock. Record a receiving movement separately when that workflow is available.</p>
+      <p className="catalog-footnote">Adding a product does not create stock. Once saved, record its initial quantity from the Stock page.</p>
     </>
   );
 }

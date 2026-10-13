@@ -4,8 +4,8 @@
 
 - The repository uses Node.js 24, npm, Next.js 16.4, TypeScript, PostgreSQL 17, Docker Compose, and `pg`.
 - The local PostgreSQL service is configured on loopback port `5433`; the development web server binds to `127.0.0.1`.
-- The owner previously reported migrations 001–003 and provisioning of the `inventory_runtime` app login succeeded. Migrations 004 and 005 are pending, and this agent did not independently apply or inspect them in the owner's database.
-- Migration 004 inserts `Demo Store` only when no location exists. Migration 005 makes the database stock function reject inactive/missing products while holding a `FOR SHARE` row lock.
+- The local database is migrated through 007, and `npm run db:check` confirmed PostgreSQL is reachable as role `inventory`. The owner previously reported provisioning of `inventory_runtime`; Atlas also ran `npm run db:verify-stock` successfully.
+- Migrations 004 and 006 seed `Demo Store` and `Demo Outlet`; migration 005 prevents stock movements for inactive/missing products; migration 007 seeds three fictional products and eight audited movements using the database write functions.
 
 ## Implemented application behavior
 
@@ -17,17 +17,16 @@
 
 ## Verification evidence
 
-- For this stock workflow, Atlas reports `npm run typecheck`, `npm run lint`, JavaScript syntax checks for the verification script, and `git diff --check` passed locally.
-- No production build, database integration run, runtime concurrency check, or screenshot was completed for this workflow.
-- `npm run db:verify-stock` is implemented to check receipt, sale deduction, same-token retry, conflicting-token rejection, oversell rejection, inactive-product rejection, resulting balance, and blank-actor audit rows. It executes its test writes in a single transaction and rolls them back. The script has not been run against the owner's database.
-- The agent session cannot connect to the owner's PostgreSQL port `5433`; owner-reported setup results are not independent verification of migrations 004/005 or the current stock actions.
+- `npm run typecheck`, `npm run lint`, `git diff --check`, `npm run db:migrate` (twice), and `npm run db:check` passed during the demo-data task.
+- The running app displayed eight movements across both locations; the Demo Store activity filter returned four rows. Atlas ran `npm run db:verify-stock`; receipt, sale, retry, oversell, and audit checks passed, and test rows were rolled back.
+- A production build was attempted but Turbopack stopped while processing CSS because its child Node.js process exited before connecting. No concurrent deduction check or screenshot has been completed.
+- `npm run db:verify-stock` checks receipt, sale deduction, same-token retry, conflicting-token rejection, oversell rejection, inactive-product rejection, resulting balance, and blank-actor audit rows. Its test writes run in a transaction that rolls back. The owner supplied successful output, and Atlas reran it successfully after migration 007.
 - GitHub Actions success has not been verified.
 
 ## Owner's next local steps
 
-1. Review/back up any local data that matters, then run `scripts/setup-database.ps1` to apply pending migrations 004 and 005 and check the connection.
-2. Run `npm run db:verify-stock` against the configured local `APP_DATABASE_URL`; confirm the script reports success and rollback.
-3. Start `npm run dev`, review `/stock` and `/activity` with fictional data, and capture the real screenshots listed in `docs/USER_MANUAL.md`.
-4. Push the local changes and verify the GitHub Actions run.
+1. Review `/products`, `/stock`, and `/activity` with the fictional demo data, and capture the real screenshots listed in `docs/USER_MANUAL.md`.
+2. Verify the GitHub Actions run for migrations 006 and 007.
+3. Continue with authentication and authorization before any public deployment.
 
 Do not expose the app to untrusted users or enter real customer data while authentication and authorization are absent.

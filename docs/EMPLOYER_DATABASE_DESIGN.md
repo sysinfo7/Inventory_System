@@ -5,9 +5,9 @@
 
 ## Purpose
 
-This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, and audit events fit together. The SQL source of truth is in [`db/001_initial.sql`](../db/001_initial.sql), [`db/002_inventory_controls.sql`](../db/002_inventory_controls.sql), [`db/003_product_catalog_writes.sql`](../db/003_product_catalog_writes.sql), [`db/004_seed_demo_location.sql`](../db/004_seed_demo_location.sql), and [`db/005_restrict_stock_movement_products.sql`](../db/005_restrict_stock_movement_products.sql); operational commands are in [`DATABASE.md`](DATABASE.md).
+This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, and audit events fit together. The SQL source of truth is in [`db/001_initial.sql`](../db/001_initial.sql), [`db/002_inventory_controls.sql`](../db/002_inventory_controls.sql), [`db/003_product_catalog_writes.sql`](../db/003_product_catalog_writes.sql), [`db/004_seed_demo_location.sql`](../db/004_seed_demo_location.sql), [`db/005_restrict_stock_movement_products.sql`](../db/005_restrict_stock_movement_products.sql), [`db/006_seed_demo_outlet.sql`](../db/006_seed_demo_outlet.sql), and [`db/007_seed_demo_inventory.sql`](../db/007_seed_demo_inventory.sql); operational commands are in [`DATABASE.md`](DATABASE.md).
 
-The current web application includes local-development catalog, stock, and movement-activity screens. `/stock` shows active products' balances and reorder attention for a selected location and provides receive and manual sale-deduction forms. `/activity` filters signed movement rows by location, type, name, SKU, or reason. The app has no authentication; current stock actions use `APP_DATABASE_URL` and pass a NULL actor ID. The owner reported migrations 003 and runtime-role provisioning succeeded. Migrations 004/005 remain pending and were not independently applied here.
+The current web application includes local-development catalog, stock, and movement-activity screens. `/stock` shows active products' balances and reorder attention for a selected location and provides receive and manual sale-deduction forms. `/activity` filters signed movement rows by location, type, name, SKU, or reason. The app has no authentication; current stock actions use `APP_DATABASE_URL` and pass a NULL actor ID. The local database has migrations through 007 and includes the three fictional demo products at Demo Store and Demo Outlet.
 
 ## Entity relationship diagram
 
@@ -144,8 +144,10 @@ To apply or upgrade the local development database from PowerShell, run `scripts
 - Migration 003 defines the controlled catalog-write function and restricted function owner. The owner reported migrations 003 and `inventory_runtime` provisioning succeeded.
 - Migration 004 inserts `Demo Store` only if no location exists.
 - Migration 005 updates the stock function to require an active product while holding a `FOR SHARE` lock.
+- Migration 006 ensures both demo locations exist, even when migration 004 skipped `Demo Store` because a location was already configured.
+- Migration 007 seeds three fictional products and eight audited movement entries through the controlled product and stock functions, preserving existing matching rows.
 - `/stock` implements selected-location active-product balances, reorder attention, stock receipt, and manual sale deductions. `/activity` implements location/type/text filters and a newest-first list capped at 200 movements.
-- Migration 004/005 application and the stock database workflow remain unverified in the owner's database. The rollback-only `npm run db:verify-stock` script is implemented but has not been run there. Returns/adjustments UI, authentication, and deployment remain future work.
+- Migrations through 007 and database connection are verified locally. The owner reported the rollback-only `npm run db:verify-stock` check passed. Returns/adjustments UI, authentication, and deployment remain future work.
 - No sample production or customer information is included. Use fictional data in demos.
 
 Update this document whenever a migration changes a table, column, key, relationship, constraint, index, database function, trigger, role grant, or implementation status. Keep the diagram and relationship descriptions aligned with the SQL files, and clearly separate implemented behavior from planned application features. It is also linked from the README and database operations guide.
