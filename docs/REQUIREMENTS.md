@@ -18,4 +18,5 @@ Demonstrate input validation, SQL constraints, transactional stock changes, conc
 
 ## Pending decisions
 
-Repository visibility, hosting, authentication roles, and whether sales entry is manual or integrated with a point-of-sale system. The initial schema must be extended for categories and prices before the catalog milestone.
+Public GitHub repository: sysinfo7/inventory-system. Pending: hosting, authentication roles, and whether sales entry is manual or integrated with a point-of-sale system. The initial schema must be extended for categories and prices before the catalog milestone.
+
