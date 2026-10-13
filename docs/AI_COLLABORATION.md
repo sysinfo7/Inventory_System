@@ -17,3 +17,9 @@ Remaining work: inventory workflows, database concurrency tests, authentication,
 Database verification: owner ran the setup script in external PowerShell; supplied output confirms healthy PostgreSQL container, successful schema application, and successful connection check. Agent did not independently rerun the database checks.
 
 
+
+## Named agent team initialization
+
+At the owner's explicit request, Atlas (the coordinating chat) initialized Forge (development), Sentinel (testing/review), Iris (UI/UX), and Sage (documentation) with gpt-6-luna and low reasoning for their read-only orientation tasks. All four read and acknowledged the shared rules and their role boundaries. No application features or automated checks were performed by these initialization tasks. Atlas's active chat model was not changed.
+
+Durable instructions: docs/agents/TEAM.md. Runtime task names in the creation session: /root/forge, /root/sentinel, /root/iris, /root/sage. Runtime agents are session-scoped; recreate from the saved role definitions when necessary. The owner authorizes direct lead-worker coordination for this project. No recurring runs were scheduled.
