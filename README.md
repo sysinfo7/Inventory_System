@@ -1,26 +1,37 @@
-# Inventory system
+# Retail inventory system
 
-A retail inventory portfolio project using TypeScript, Next.js, PostgreSQL, automated checks, and documented AI collaboration.
+A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
 ## Current status
 
-Development foundation, not a finished inventory application. Includes a starter page, PostgreSQL Compose configuration, initial schema, database scripts, and GitHub Actions checks. Inventory workflows and authentication are planned.
+The repository includes the Next.js project page and database foundations for a product catalog, stock balances, inventory movements, and audit events. The web app does not yet expose product editing or stock workflows. Migration 002 has not been applied to the owner's database from this environment.
 
-## Run locally
+The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
-Requirements: Node.js 24, Git, Docker Desktop with the Linux engine running.
+## Local setup
+
+Requirements: Node.js 24, npm, Git, and Docker Desktop with its Linux engine running. In PowerShell from this repository:
 
 ```powershell
+Copy-Item .env.example .env
+# Set the same long, unique development password for both password placeholders in .env.
 npm ci
-# For a fresh checkout, copy .env.example to .env and replace both password placeholders.
-# This workspace already has a generated .env; preserve it.
-docker compose up -d --wait
-npm run db:migrate
-npm run db:check
+.\scripts\setup-database.ps1
 npm run dev
 ```
 
-Open http://localhost:3000. Database port: localhost:5433. Credentials are excluded from Git. `docker compose stop` preserves database data.
+Open http://localhost:3000. PostgreSQL is published to the local machine at port 5433. Never commit or share `.env` or database backups.
+
+## Project documentation
+
+- [Architecture](docs/ARCHITECTURE.md): data model, stock transaction flow, and implementation boundaries.
+- [Database operations](docs/DATABASE.md): migrations, database commands, backup, restore, and clean reset.
+- [Security](docs/SECURITY.md): implemented safeguards, limitations, and work required before deployment.
+- [User manual](docs/USER_MANUAL.md): current page and database operations; application screenshots await browser access.
+- [Requirements](docs/REQUIREMENTS.md): retail scope and initial milestone.
+- [UI/UX specification](docs/agents/retail-ui-spec.md): proposed workflows and accessibility criteria.
+- [AI collaboration log](docs/AI_COLLABORATION.md): actual agent contributions and verification evidence.
+- [Agent roles](docs/agents/TEAM.md): responsibilities, permissions, and handoff rules.
 
 ## Checks
 
@@ -28,28 +39,19 @@ Open http://localhost:3000. Database port: localhost:5433. Credentials are exclu
 npm run lint
 npm run typecheck
 npm run build
+npm run db:migrate
+npm run db:check
 ```
 
-GitHub Actions additionally applies the schema and checks PostgreSQL connectivity. The initial schema is repeatable; introduce versioned migrations before changing deployed tables.
+GitHub Actions is configured to run code checks and migration commands. CI success has not yet been verified for the current migrations.
 
-## Architecture and milestones
+## Security boundary
 
-Products have unique SKUs and reorder points. Stock movements reference products and locations; a SQL view computes balances from movement history.
+The local PostgreSQL port binds to loopback. The app has no authentication and must not be exposed to untrusted users or deployed with real customer data. The application role is a `NOLOGIN` group role with limited read/function grants; a trusted operator must provision a separate runtime login. Actor UUIDs are optional and caller-controlled until authenticated identity is implemented. See [SECURITY.md](docs/SECURITY.md).
 
-1. Confirm inventory domain, intended users, and acceptance criteria.
-2. Implement product catalog, search, and validation.
-3. Implement receiving/issuing stock with transactions, nonnegative balances, immutable history, and concurrency tests.
-4. Add location balances and reorder alerts.
-5. Add authentication, permissions, integration tests, and accessibility checks.
-6. Publish a hosted demo, screenshots, architecture decisions, and walkthrough.
+## Planned first features
 
-This initial schema does not yet enforce nonnegative balances or immutable movement history. Implement those controls before enabling application stock writes.
-
-## AI collaboration
-
-Record substantial AI-assisted changes in docs/AI_COLLABORATION.md: problem, agent contribution, human decisions, checks, and limitations. Claim only work and agent usage that actually occurred.
-
-## GitHub
-
-Local Git repository initialized on main. Creation and first push require the owner's GitHub account, visibility choice, and commit identity. Never commit .env, credentials, or database volumes.
-
+1. Product catalog with unique SKU, category, sale price, and reorder point.
+2. Stock receiving and sale deductions through the database transaction function.
+3. Movement and audit views, location balances, and low-stock alerts.
+4. Authentication, role permissions, accessibility, and stronger CI coverage before deployment.

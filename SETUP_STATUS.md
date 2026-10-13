@@ -1,39 +1,28 @@
 # Setup status
 
-## Installed and available
+## Environment and project
 
-- Git 2.54.0, Node.js 24.16.0, npm 11.13.0, VS Code, Docker CLI 29.5.3, Compose 5.1.4 were already installed.
-- Installed project dependencies: Next.js 16.4.0, React 19.3.0, TypeScript, Tailwind CSS, ESLint, pg and pg types. Exact versions are in package-lock.json.
-- Initialized local Git repository on main. Commit identity configured locally for sysinfo7 with the supplied email. Public GitHub destination approved: sysinfo7/Inventory_System. Local commits are saved; remote repository created by the owner; upload remains pending.
-- PostgreSQL container is healthy. The owner ran scripts/setup-database.ps1 successfully in external PowerShell on October 13, 2026: Docker server 29.8.2, schema applied, and PostgreSQL connection verified. This restricted agent session still cannot access the Docker named pipe.
-- Generated local database credentials in ignored .env. The example file contains placeholders only.
+- Git, Node.js 24, npm, VS Code, Docker Desktop, and Compose were already installed.
+- Local project: TypeScript/Next.js, PostgreSQL 17, and `pg`; package versions are pinned in `package-lock.json`.
+- Public repository: https://github.com/sysinfo7/Inventory_System. Previous local commits have been pushed by the owner. This turn's database and documentation updates remain local until pushed.
+- Owner ran `scripts/setup-database.ps1` and supplied output confirming the initial PostgreSQL container, schema 001, and connection check succeeded. Migration 002, which adds catalog/audit/stock controls and the migration ledger, is pending application.
 
-## Validation
+## Current validation evidence
 
-- ESLint: passed.
-- TypeScript check: passed.
-- First production build: passed.
-- Repeated production build: failed with EPERM while creating a generated .next prerender directory. Cleanup of .next was rejected by the session approval policy. Needs a clean build outside that restriction.
-- Docker Compose configuration: passed validation.
-- Production dependency audit: zero reported vulnerabilities.
-- Full dependency audit: five high findings in the eslint-config-next -> fast-glob -> micromatch -> braces development dependency chain. Registry latest braces was 3.0.3, still affected; do not force a Next.js major downgrade as an automatic fix. Recheck for a compatible patched release before relying on CI.
-- Database migration and connectivity: passed in external PowerShell, confirmed by output supplied by the owner.
-- GitHub Actions: prepared, not run on GitHub.
+- Previous base project: lint, typecheck, and an initial production build succeeded. A later repeated build encountered EPERM while writing `.next`; see prior history for session limits. This turn did not re-run application checks.
+- Forge ran `node --check scripts/db.mjs` and `git diff --check`; both passed. Sentinel reviewed the SQL statically and found the aggregate-view dependency addressed by dropping/recreating the view around the quantity type change.
+- Database migration 002, role grants, runtime stock behavior, and CI remain unverified: the agent session could not connect to localhost PostgreSQL. The owner must run `scripts/setup-database.ps1` from PowerShell.
+- No backup, restore, or destructive reset command has been executed.
+- No real browser screenshots could be captured because the browser preview could not reach the running local app. The manual lists the outstanding screenshots.
 
-## Needs from project owner
+## Security and scope limitations
 
-1. Retail inventory confirmed; proposed TypeScript/Next.js stack remains the working default.
-2. Confirmed: sysinfo7/Inventory_System, public.
-3. Git commit identity supplied and configured.
-4. Docker engine and PostgreSQL setup complete.
-5. Complete GitHub sign-in personally when prompted; do not share passwords or tokens in chat.
+- The database audit records inventory movements and product metadata changes. It is not a full financial accounting or compliance system.
+- Authentication and verified human actor attribution are not implemented. Do not expose the app or enter real customer data.
+- Owner-supplied database output verifies only the original setup; it does not verify migration 002.
 
-## Remaining work
+## Next owner actions
 
-Push saved commits to the public GitHub repository and verify CI. Then implement retail inventory features against agreed acceptance criteria.
-
-
-Database setup fallback: run scripts/setup-database.ps1 in a normal PowerShell terminal. Named-pipe access could not be granted by this session's permission interface.
-
-
-
+1. Run `scripts/setup-database.ps1` in a normal PowerShell terminal to apply the migration and send back the output.
+2. Push the locally saved updates to the public GitHub repository and verify Actions.
+3. Capture actual landing-page screenshots when browser access is available; add feature screenshots as those screens are implemented.
