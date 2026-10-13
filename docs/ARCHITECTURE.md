@@ -2,7 +2,7 @@
 
 ## Current state
 
-The repository combines a Next.js App Router product catalog and local inventory workflow with a PostgreSQL 17 development database. The catalog supports search/list, add, edit, and deactivate. `/stock` shows active product balances and reorder attention for a selected location and provides receiving and manual sale-deduction forms. `/activity` filters and displays signed movement rows. These routes and actions are development-only while authentication is absent. The stock action calls the controlled database function through `APP_DATABASE_URL` and passes a NULL actor ID.
+The repository combines a Next.js App Router product catalog and inventory workflow with a PostgreSQL 17 database. `/stock` shows active product balances and reorder attention for a selected location and provides receiving and manual sale-deduction forms subject to role permissions. `/activity` filters signed movement rows and displays the authenticated actor for new events. Session identity and permissions are checked server-side; stock and product writes use `APP_DATABASE_URL` and pass a database-validated user UUID for audit attribution.
 
 The stack is TypeScript, React, Next.js, Tailwind CSS, PostgreSQL, and the `pg` driver. `npm run db:migrate` applies numbered SQL files. The runner serializes migration runs with an advisory lock, stores a SHA-256 checksum for each applied version, and wraps each migration and ledger record in one transaction. An applied SQL file whose checksum changes is rejected; follow-up schema changes belong in a new numbered migration. There is no automatic rollback command.
 
@@ -82,7 +82,7 @@ flowchart TD
     L -- Yes --> M[Raise insufficient-stock error; statement rolls back]
     L -- No --> N[Update cached balance]
     N --> O[Insert append-only movement]
-    O --> P[Audit trigger records event with NULL actor]
+    O --> P[Audit trigger records event with session actor]
     P --> Q[Return movement ID]
 ```
 
@@ -110,15 +110,15 @@ record_stock_movement(product, location, delta, type, reason, actor?, request?, 
 
     update cached balance by delta
     insert the movement record
-    let the audit trigger append an audit event (the current app supplies NULL actor)
+    let the audit trigger append an audit event with the verified session actor
     return the new movement ID
 ```
 
 ## Database role boundary and limits
 
-Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migration 003 grants it execution of `save_product`, not direct catalog table writes. It transfers stock, product, and audit security-definer routines to `inventory_function_owner`, a no-login role with only the table/sequence grants needed by those routines. `scripts/provision-app-role.mjs` provisions `inventory_runtime` with a separate password and only the `inventory_app` membership. Migration credentials remain in `DATABASE_URL`; app reads/writes use `APP_DATABASE_URL`. The local database has applied migrations through 007 and the connection check passed.
+Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migrations 003 and 009 grant the controlled product-write function, not direct catalog table writes. Migrations 008–010 add app users, opaque hashed sessions, and actor foreign keys. Four app roles are enforced by server-side page/action checks; an Administrator can create, activate, and deactivate users. The `inventory_runtime` login is separate from project AI agents and receives no identities from them. The local database has migrations through 010 applied and the connection check passed.
 
-The security-definer functions run with `inventory_function_owner` privileges and fix their `search_path` to `pg_catalog, public, pg_temp`, with the temporary schema last. This is a useful boundary for the intended local application role, not a claim of production-grade security. Database owners/superusers can change functions, triggers, or data. There is no authentication in the application, and both catalog and stock actions currently use blank actor attribution. Product, stock, and activity workflows must not be exposed beyond local development.
+The security-definer functions run with `inventory_function_owner` privileges and fix their `search_path` to `pg_catalog, public, pg_temp`, with the temporary schema last. Database-backed sessions authenticate app users and server-side permission checks gate pages and actions. The Administrator can create/deactivate accounts; role changes take effect on the next request because the app resolves the role from the database. This is a local portfolio implementation, not a claim of production-grade security: database owners/superusers can change functions, triggers, or data. Rate limits, password recovery, and production secrets/TLS/network policy remain future work.
 
 ## Inventory audit trail and accounting boundary
 

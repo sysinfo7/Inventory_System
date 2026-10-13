@@ -57,7 +57,7 @@ A location selector scopes the current `/stock` page; `/activity` can filter to 
 
 ## Receive stock flow
 
-**Implemented on `/stock` (local development only).** The current form selects a location and active product, accepts positive whole units and a required 1–300 character reason, previews the change, and shows a success or validation/stock error. The action passes a generated request UUID and NULL actor ID. The database function requires an active product and serializes the balance update. The owner reported that migrations 004/005 and `npm run db:verify-stock` succeeded. Reorder attention compares each location's quantity with the product-level reorder point; the schema does not define a separate threshold per location.
+**Implemented on `/stock` with role permissions.** The form selects a location and active product, accepts positive whole units and a required 1–300 character reason, previews the change, and shows a success or validation/stock error. Authorized actions pass a generated request UUID and the authenticated actor ID. The database function requires an active product and serializes the balance update. Reorder attention compares each location's quantity with the product-level reorder point; the schema does not define a separate threshold per location.
 
 1. Start from dashboard, Stock, a low-stock row, or product detail.
 2. Select product (search by SKU/name), location, and positive whole-unit quantity. Enter a reason/reference note if the final API supports it; show concise suggestions such as “Supplier delivery” without forcing invented supplier data.
@@ -79,7 +79,7 @@ Fields and confirmation must distinguish a quantity addition from a receipt of m
 
 ## Activity / audit history
 
-**Implemented on `/activity` (local development only).** The current filters are location, movement type, and text matching product name, SKU, or reason. The newest-first list shows UTC timestamp, product/SKU, location, movement type, signed quantity, and reason; it returns up to 200 rows. It does not currently filter by date or actor, show resulting balance, or expose movement detail/ID in the table. Actor identity is blank because authentication is absent and the stock action passes NULL.
+**Implemented on `/activity` (sign-in required).** Filters are location, movement type, and text matching product name, SKU, or reason. The newest-first list shows UTC timestamp, product/SKU, location, movement type, signed quantity, reason, and recorded-by name for authenticated events; it returns up to 200 rows. Legacy seed entries have no actor. Date/actor filters, resulting balance, and movement detail/ID remain future enhancements.
 
 - Present an append-oriented movement list with newest first and filters for date range, product/SKU, location, movement type/reason, and actor if available. Include a clear reset action and active-filter chips.
 - Each row: timestamp with timezone/context, product name and SKU, location, signed unit delta (“+12 units” / “−2 units”), resulting balance if the API supplies a trustworthy point-in-time value, reason/reference, actor if available, and stable movement ID in detail view.
@@ -114,7 +114,7 @@ These are in the requirements but not yet specified at business-rule level. Prop
 | Product identity | `products.id`, `sku`, `name` | Keep SKU visible in search results and movement rows. |
 | Reorder attention | `products.reorder_point` | Compare with current on-hand within the selected location only if the business defines that threshold per location; otherwise clarify whether threshold is global. |
 | Location | `locations.id`, `name` | Always show location on balances and stock writes. |
-| Stock event | `stock_movements.product_id`, `location_id`, `quantity_delta`, `movement_type`, `reason`, `occurred_at`, nullable `actor_id` | Render delta with sign and reason. Current app passes NULL actor. External POS reference and correction links are not implemented. |
+| Stock event | `stock_movements.product_id`, `location_id`, `quantity_delta`, `movement_type`, `reason`, `occurred_at`, nullable `actor_id` | Render delta with sign, reason, and user display name when present. Seed rows retain NULL actors. External POS reference and correction links are not implemented. |
 | Balance | `stock_balances` view over the transactionally maintained `inventory_stock` projection | Label as current on-hand. A missing product/location projection displays as zero. The movement history remains the ledger; writes update both in one function call. |
 | Category and price | `products.category_id`, `categories.name`, and `products.sale_price` are available after migration 002 | Category and nonnegative decimal amount are editable. Currency is not configured; do not imply a specific currency or accounting valuation. |
 | Availability | Not modeled beyond movement-derived balance | Do not imply reservations, in-flight orders, or sellable stock beyond the recorded on-hand count. |

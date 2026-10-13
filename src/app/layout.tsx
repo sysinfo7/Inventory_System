@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { currentUser } from "@/lib/auth";
+import { LogoutButton } from "@/app/logout/logout-button";
 import "./globals.css";
+import { Suspense } from "react";
 export const metadata: Metadata = { title: "Inventory System | Retail inventory", description: "Local retail inventory catalog, stock tracking, and movement history" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return <html lang="en"><body className="min-h-screen antialiased">
@@ -10,15 +13,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <span className="brand-mark" aria-hidden="true">I</span>
           <span className="brand-copy"><strong>Inventory</strong><small>RETAIL OPERATIONS</small></span>
         </Link>
-        <nav className="top-nav" aria-label="Main navigation">
-          <Link href="/">Overview</Link>
-          <Link href="/products">Products</Link>
-          <Link href="/stock">Stock</Link>
-          <Link href="/activity">Activity</Link>
-        </nav>
-        <span className="environment-tag"><span aria-hidden="true">●</span> Local demo</span>
+        <Suspense fallback={<span className="environment-tag">Loading session…</span>}><SessionNavigation /></Suspense>
       </header>
-      {children}
+      <Suspense fallback={<main className="page-shell"><section className="loading-panel" aria-busy="true"><p>Loading inventory…</p></section></main>}>{children}</Suspense>
     </div>
   </body></html>;
+}
+
+async function SessionNavigation() {
+  const user = await currentUser();
+  return <>
+    <nav className="top-nav" aria-label="Main navigation">
+      <Link href="/">Overview</Link>
+      {user && <><Link href="/products">Products</Link><Link href="/stock">Stock</Link><Link href="/activity">Activity</Link><Link href="/permissions">Permissions</Link>{user.role === 'admin' && <Link href="/users">Users</Link>}</>}
+    </nav>
+    {user ? <div className="account-controls"><span className="environment-tag"><span aria-hidden="true">●</span> {user.displayName} · {user.role}</span><LogoutButton /></div>
+      : <Link className="button button-secondary sign-in-link" href="/login">Sign in</Link>}
+  </>;
 }

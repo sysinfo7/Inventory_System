@@ -4,16 +4,14 @@ import { Suspense } from 'react';
 import { listCategories } from '@/lib/db';
 import { EditorMessage } from '../editor-message';
 import { ProductForm } from '../product-form';
+import { requirePermission } from '@/lib/auth';
 
 export default function NewProductPage() {
   return <main className="page-shell"><Suspense fallback={<p className="loading-panel">Preparing product form…</p>}><NewProductContent /></Suspense></main>;
 }
 
 async function NewProductContent() {
-  if (process.env.NODE_ENV === 'production') {
-    return <EditorMessage title="Local demo only" message="Product editing is disabled in production until sign-in and authorization are implemented." />;
-  }
-
+  await requirePermission('catalog:write');
   await connection();
   let categories;
   try {

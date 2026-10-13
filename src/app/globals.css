@@ -41,6 +41,26 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .top-nav a:hover { color: var(--green); }
 .environment-tag { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid #e5eae6; border-radius: 999px; background: #fff; color: #627068; font-size: 11px; font-weight: 600; }
 .environment-tag span { color: #48a475; font-size: 9px; }
+.account-controls { display: flex; align-items: center; gap: 9px; }
+.account-button { border: 0; background: transparent; color: #52665a; cursor: pointer; font-size: 11px; font-weight: 700; }
+.account-button:hover { color: var(--green); text-decoration: underline; }
+.sign-in-link { min-height: 36px; font-size: 10px; }
+.auth-shell { display: grid; min-height: calc(100vh - 150px); place-items: center; }
+.auth-panel { width: min(100%, 490px); border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 34px; box-shadow: var(--shadow); }
+.auth-panel h1 { margin: 0; color: #20382a; font-size: 34px; letter-spacing: -.045em; }
+.auth-form { display: grid; gap: 17px; margin-top: 24px; }
+.auth-form .button { margin-top: 3px; }
+.permission-table { min-width: 720px; }
+.permission-table thead th:first-child, .permission-table tbody th { width: 240px; padding-left: 22px; color: #536157; font-size: 11px; letter-spacing: 0; text-transform: none; }
+.permission-yes { color: #34794c; font-weight: 700; }
+.permission-no { color: #929b94; }
+.user-create-panel { max-width: none; margin: 0 0 22px; padding: 22px; }
+.user-create-panel h2 { margin: 0; color: #293a30; font-size: 15px; }
+.user-create-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 13px; align-items: end; margin-top: 16px; }
+.user-create-form .button { min-height: 40px; }
+.user-list-panel { margin-top: 22px; }
+.user-table { min-width: 750px; }
+.user-table td form { margin: 0; }
 
 .home-shell, .page-shell { width: min(1180px, calc(100% - 64px)); margin: 0 auto; padding: 44px 0 64px; }
 .hero-panel { position: relative; display: flex; min-height: 370px; align-items: center; overflow: hidden; padding: 58px 64px; border: 1px solid #dfe9e1; border-radius: 19px; background: linear-gradient(112deg, #edf5ee 0%, #f0f5ed 53%, #e8f1e9 100%); }
@@ -226,6 +246,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .topbar, .home-shell, .page-shell { width: min(100% - 36px, 680px); }
   .topbar { height: 72px; }
   .top-nav { gap: 17px; padding-left: 0; }
+  .account-controls { margin-left: auto; }
   .hero-panel { min-height: 360px; padding: 45px 36px; }
   .hero-art { right: -75px; opacity: .5; }
   .hero-copy { max-width: 570px; }
@@ -252,6 +273,9 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .brand-copy small { font-size: 7px; }
   .top-nav { order: 3; width: 100%; flex-basis: 100%; justify-content: space-between; gap: 9px; margin: 11px 0 0; padding: 0; }
   .top-nav a { font-size: 11px; }
+  .account-controls { width: 100%; justify-content: flex-end; margin: 7px 0 0; }
+  .auth-panel { padding: 24px 19px; }
+  .user-create-form { grid-template-columns: 1fr; }
   .environment-tag { gap: 5px; padding: 7px; font-size: 9px; }
   .hero-panel { min-height: 390px; padding: 34px 23px; align-items: flex-start; }
   .hero-copy { max-width: 100%; }

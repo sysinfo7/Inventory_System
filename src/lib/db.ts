@@ -46,6 +46,7 @@ export type StockActivity = {
   movementType: 'receiving' | 'sale' | 'return' | 'adjustment';
   reason: string;
   occurredAt: string;
+  actorName: string | null;
 };
 
 export async function listInventoryLocations(): Promise<InventoryLocation[]> {
@@ -90,10 +91,12 @@ export async function listStockActivity(filters: {
 }): Promise<StockActivity[]> {
   const result = await getDbPool().query(`
     SELECT m.id, m.product_id, p.sku, p.name AS product_name, m.location_id,
-           l.name AS location_name, m.quantity_delta, m.movement_type, m.reason, m.occurred_at
+           l.name AS location_name, m.quantity_delta, m.movement_type, m.reason, m.occurred_at,
+           u.display_name AS actor_name
     FROM stock_movements AS m
     JOIN products AS p ON p.id = m.product_id
     JOIN locations AS l ON l.id = m.location_id
+    LEFT JOIN app_users AS u ON u.id = m.actor_id
     WHERE ($1::text = '' OR m.location_id = NULLIF($1, '')::bigint)
       AND ($2::text = 'all' OR m.movement_type = $2::text)
       AND ($3::text = '' OR p.sku ILIKE '%' || $3 || '%'
@@ -107,6 +110,7 @@ export async function listStockActivity(filters: {
     locationName: row.location_name, quantityDelta: String(row.quantity_delta),
     movementType: row.movement_type, reason: row.reason,
     occurredAt: row.occurred_at.toISOString(),
+    actorName: row.actor_name,
   }));
 }
 

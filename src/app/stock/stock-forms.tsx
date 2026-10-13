@@ -118,6 +118,8 @@ export function StockForms(props: {
   selectedLocationId: string;
   receiveRequestId: string;
   saleRequestId: string;
+  canReceive: boolean;
+  canSell: boolean;
 }) {
   if (props.locations.length === 0) {
     return <div className="empty-state compact-empty"><h3>No locations are available</h3><p>The latest database migration seeds a “Demo Store” when no location exists. Apply the migrations, then refresh this page.</p></div>;
@@ -125,16 +127,17 @@ export function StockForms(props: {
   if (props.products.length === 0) {
     return <div className="empty-state compact-empty"><h3>No active products yet</h3><p>Add a product to the catalog before recording stock.</p><Link className="button button-secondary" href="/products/new">Add a product</Link></div>;
   }
+  if (!props.canReceive && !props.canSell) return <p className="catalog-footnote">Your account has read-only stock access.</p>;
   return (
     <div className="stock-forms-grid">
-      <section className="stock-panel" aria-labelledby="receive-heading">
+      {props.canReceive && <section className="stock-panel" aria-labelledby="receive-heading">
         <div className="stock-panel-heading"><span className="stock-panel-icon" aria-hidden="true">＋</span><div><h2 id="receive-heading">Receive stock</h2><p>Record units arriving at a location.</p></div></div>
         <StockForm kind="receive" locations={props.locations} products={props.products} selectedLocationId={props.selectedLocationId} initialRequestId={props.receiveRequestId} />
-      </section>
-      <section className="stock-panel" aria-labelledby="sale-heading">
+      </section>}
+      {props.canSell && <section className="stock-panel" aria-labelledby="sale-heading">
         <div className="stock-panel-heading"><span className="stock-panel-icon" aria-hidden="true">−</span><div><h2 id="sale-heading">Manual sale deduction</h2><p>Record units leaving inventory for a manual sale.</p></div></div>
         <StockForm kind="sale" locations={props.locations} products={props.products} selectedLocationId={props.selectedLocationId} initialRequestId={props.saleRequestId} />
-      </section>
+      </section>}
     </div>
   );
 }

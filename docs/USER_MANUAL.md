@@ -2,9 +2,9 @@
 
 ## What you can use today
 
-The app includes a local product catalog, stock page, and activity page. The catalog supports search, active/inactive filters, add/edit, and deactivate. `/stock` shows current balances for active products at the selected location, flags quantities at or below each product's reorder point, and provides receive and manual sale-deduction forms. `/activity` filters and lists recent signed movement rows. Returns, adjustments, authentication, and a separate dashboard remain planned.
+The app includes a local product catalog, stock page, activity page, sign-in, and role-based permissions. The catalog supports search, active/inactive filters, add/edit, and deactivate. `/stock` shows current balances for active products at the selected location, flags quantities at or below each product's reorder point, and provides receive and manual sale-deduction forms according to role. `/activity` filters and lists recent signed movement rows and the actor for newly authenticated changes. Returns, adjustments, user administration, and a separate dashboard remain planned.
 
-Migrations through 007 are applied to the current local database. The rollback-only stock workflow verification passed. The current demo contains two locations, three fictional products, and eight audited movement rows; the sample data is recreated after a clean reset.
+Migrations through 010 are applied to the current local database. The rollback-only stock workflow verification passed. The current demo contains two locations, three fictional products, and eight sample movement rows; the sample data is recreated after a clean reset. The initial sample actor is blank; new app-recorded changes identify the signed-in user.
 
 ## Start the local project
 
@@ -24,16 +24,17 @@ To generate and save a separate application password without displaying it, run 
 
 It writes only to the git-ignored `.env` and refuses to replace an existing app URL. Do not share or commit `.env`.
 
-Apply pending migrations, provision the limited app login if it is not already provisioned, run the rollback-only stock verification script after migrations, and start the local-only web server:
+Apply pending migrations, provision the limited app login if it is not already provisioned, run the rollback-only stock verification script, and start the local web server:
 
 ```powershell
 .\scripts\setup-database.ps1
 npm run db:provision-app
 npm run db:verify-stock
+npm run auth:bootstrap
 npm run dev
 ```
 
-`db:verify-stock` checks receipt, sale, idempotent retry, conflicting request token, oversell rejection, inactive product rejection, resulting balance, and blank-actor audit rows in a single transaction that is rolled back. It passed against the current local database. The app and PostgreSQL bind to loopback for local use. Open [http://127.0.0.1:3000](http://127.0.0.1:3000). See [DATABASE.md](DATABASE.md) for migration, role, backup, restore, and destructive reset details.
+`db:verify-stock` checks receipt, sale, idempotent retry, conflicting request token, oversell rejection, inactive product rejection, resulting balance, and an audit row in a transaction that is rolled back. Run `npm run auth:bootstrap` once to create a personal admin account; it asks for a private 14-character-or-longer password and doesn't echo it. The app and PostgreSQL bind to loopback for local use. Open [http://127.0.0.1:3000](http://127.0.0.1:3000). In a second PowerShell window from the project folder, `npm run auth:verify` creates a temporary read-only user and checks sign-in, permissions, logout, and actor audit attribution; it removes the test account when done. See [DATABASE.md](DATABASE.md) for migration, role, backup, restore, and destructive reset details.
 
 Stop the web server with `Ctrl+C`. To stop PostgreSQL while keeping local data, run:
 
@@ -51,9 +52,25 @@ docker compose stop
 
 Sale prices are decimal amounts; no currency has been configured. Editing catalog details never creates or changes stock. Stock changes are recorded as movement history through the separate stock workflow.
 
-## Local demo and security limits
+## Sign in and test role permissions
 
-Authentication and authorization are not implemented. Catalog, stock, and activity pages/actions are restricted to local development, and the development server binds to `127.0.0.1`. Use fictional data and do not expose the server to untrusted users. The web app uses the separate `APP_DATABASE_URL` login; migration commands use the more privileged `DATABASE_URL`. Product audit entries have a generated request ID, while stock actions pass a NULL actor ID; neither identifies a verified human user. See [SECURITY.md](SECURITY.md).
+Apply current migrations and confirm the runtime DB login is provisioned. Create your personal administrator account locally; the command prompts for email, display name, and a unique password and never saves the password in the repository:
+
+```powershell
+npm run auth:bootstrap
+```
+
+Start `npm run dev`, open [http://127.0.0.1:3000/login](http://127.0.0.1:3000/login), and sign in. The **Permissions** page displays the role matrix. Test accounts are optional. Create fictional Manager, Clerk, and Read-only accounts:
+
+```powershell
+npm run auth:seed-test-users
+```
+
+Type `YES` at the prompt. It prints generated passwords once in the local terminal. Save them somewhere private if needed; they are not stored in this manual or Git. Run the command again to rotate these test passwords. Their account names are `manager@inventory-demo.invalid`, `clerk@inventory-demo.invalid`, and `viewer@inventory-demo.invalid`.
+
+Sign out and try each test account. Manager can edit products and record stock; Clerk can view products but cannot add/edit them, while receiving and recording sale deductions; Read-only can inspect catalog, stock, and activity, but cannot change records. Try opening `/products/new` while read-only: the server redirects to a permission-required page. Server actions also check permission when submitted, so hidden buttons are not the security boundary.
+
+Sessions last eight hours and use HttpOnly/SameSite cookies; signing out revokes the server-side session. Passwords use salted scrypt hashes. Test accounts require explicit opt-in and are not seeded automatically. Rate limiting and account recovery are future hardening work before public deployment. See [SECURITY.md](SECURITY.md).
 
 ## Stock on hand and recording a movement
 
@@ -63,11 +80,11 @@ The local demo has two locations. **Demo Outlet** has 10 coffee units and 13 tra
 
 To receive stock or record a manual sale deduction, choose the location and active product, enter a positive whole number of units, and provide a reason. Review the movement preview before submitting. The receiving action adds units; the sale action stores a negative quantity delta. If the sale would make stock negative, the database rejects it and the page reports the latest available quantity. Inactive products cannot receive new movements after migration 005 is applied. Each submission uses a request UUID so an identical retry does not create a duplicate movement.
 
-These are inventory quantity records only. They do not process payments, record a POS sale, or create accounting entries. Authentication is absent and the action writes a NULL actor ID.
+These are inventory quantity records only. They do not process payments, record a POS sale, or create accounting entries. New stock entries carry the signed-in user's ID; old seed movements have no user and display as legacy entries.
 
 ## Movement activity
 
-Open `/activity` to see the newest stock movements first. Filter by location, movement type, or text matching product name, SKU, or reason. Results show UTC time, product/SKU, location, movement type, signed units, and reason, up to 200 matching rows. The activity page does not display a verified human actor because the current stock action passes NULL and no authentication exists.
+Open `/activity` to see the newest stock movements first. Filter by location, movement type, or text matching product name, SKU, or reason. Results show UTC time, product/SKU, location, movement type, signed units, reason, and the signed-in actor when available, up to 200 matching rows.
 
 ## Database stock operation
 
@@ -75,7 +92,7 @@ The app calls the controlled function `record_stock_movement`. It validates move
 
 ```mermaid
 flowchart TD
-    A[App supplies product, location, positive units, type, reason, request UUID, NULL actor] --> B[Validate fields and direction]
+    A[App supplies product, location, positive units, type, reason, request UUID, verified user actor] --> B[Validate fields and direction]
     B --> C[Match request UUID for safe retry]
     C --> D[Lock product row FOR SHARE]
     D --> E{Product active?}
@@ -92,7 +109,7 @@ The database workflow and rollback-only transaction check have been exercised. T
 
 ## Screenshots still needed
 
-Repository screenshots have not yet been saved. The local app is now reachable with fictional sample data and migrations through 007 applied; capture these views from the running app:
+Repository screenshots have not yet been saved. The local app is now reachable with fictional sample data and migrations through 010 applied; capture these views from the running app:
 
 | File | Required capture |
 | --- | --- |

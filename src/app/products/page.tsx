@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { listCatalogProducts } from '@/lib/db';
+import { requirePermission, hasPermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
 type ProductsPageProps = { searchParams: Promise<{ q?: QueryValue; status?: QueryValue; saved?: QueryValue }> };
@@ -21,11 +22,7 @@ export default function ProductsPage(props: ProductsPageProps) {
 }
 
 async function CatalogContent({ searchParams }: ProductsPageProps) {
-  // Keep the database-backed catalog out of production until real authentication exists.
-  if (process.env.NODE_ENV === 'production') {
-    return <CatalogUnavailable message="The catalog demo is limited to local development until sign-in is implemented." />;
-  }
-
+  const user = await requirePermission('catalog:read');
   await connection();
   const params = await searchParams;
   const rawSearch = firstValue(params.q);
@@ -49,12 +46,12 @@ async function CatalogContent({ searchParams }: ProductsPageProps) {
           <h1>Products</h1>
           <p className="page-description">Keep product details organized. Stock changes are recorded separately in the movement history.</p>
         </div>
-        <Link className="button button-primary" href="/products/new">Add product <span aria-hidden="true">+</span></Link>
+        {hasPermission(user.role, 'catalog:write') && <Link className="button button-primary" href="/products/new">Add product <span aria-hidden="true">+</span></Link>}
       </div>
 
       <aside className="demo-notice" aria-label="Local demo notice">
         <span className="notice-mark" aria-hidden="true">i</span>
-        <p><strong>Local demo mode.</strong> Authentication is not implemented. Use this app only on your own development computer and enter fictional data.</p>
+        <p><strong>Signed-in inventory.</strong> Product changes are attributed to your account in the audit log.</p>
       </aside>
 
       {firstValue(params.saved) === '1' && <p className="success-notice" role="status">Product saved. The catalog has been refreshed.</p>}
@@ -113,7 +110,7 @@ async function CatalogContent({ searchParams }: ProductsPageProps) {
                     <td data-label="Sale price">{product.salePrice ?? <span className="muted">—</span>}</td>
                     <td data-label="Reorder point">{product.reorderPoint} <span className="muted">units</span></td>
                     <td data-label="Status"><span className={`status-pill ${product.active ? 'status-active' : 'status-inactive'}`}><span aria-hidden="true">●</span> {product.active ? 'Active' : 'Inactive'}</span></td>
-                    <td data-label="Actions"><Link className="table-action" href={`/products/${product.id}/edit`}>Edit <span className="sr-only">{product.name}</span></Link></td>
+                    <td data-label="Actions">{hasPermission(user.role, 'catalog:write') ? <Link className="table-action" href={`/products/${product.id}/edit`}>Edit <span className="sr-only">{product.name}</span></Link> : <span className="muted">View only</span>}</td>
                   </tr>
                 ))}
               </tbody>

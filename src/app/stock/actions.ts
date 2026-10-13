@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { getDbPool, readLocationBalance } from '@/lib/db';
+import { requirePermission } from '@/lib/auth';
 
 export type StockFormValues = {
   locationId: string;
@@ -19,8 +20,6 @@ export type StockActionState = {
   success?: boolean;
   available?: string;
 };
-
-const emptyValues: StockFormValues = { locationId: '', productId: '', quantity: '', reason: '' };
 
 function readText(formData: FormData, field: string) {
   const value = formData.get(field);
@@ -41,12 +40,7 @@ async function submitMovement(
   formData: FormData,
   movementType: 'receiving' | 'sale',
 ): Promise<StockActionState> {
-  if (process.env.NODE_ENV !== 'development') {
-    return {
-      message: 'Stock changes are available only in local development until sign-in is implemented.',
-      errors: {}, values: previous.values ?? emptyValues, requestId: previous.requestId || randomUUID(),
-    };
-  }
+  const actor = await requirePermission(movementType === 'receiving' ? 'stock:receive' : 'stock:sale');
 
   const values: StockFormValues = {
     locationId: readText(formData, 'locationId'),
@@ -74,9 +68,9 @@ async function submitMovement(
   try {
     await getDbPool().query(
       `SELECT record_stock_movement(
-        $1::bigint, $2::bigint, $3::bigint, $4::text, $5::text, NULL, $6::uuid, NULL
+        $1::bigint, $2::bigint, $3::bigint, $4::text, $5::text, $6::uuid, $7::uuid, NULL
       )`,
-      [values.productId, values.locationId, delta, movementType, values.reason, requestId],
+      [values.productId, values.locationId, delta, movementType, values.reason, actor.id, requestId],
     );
     const balance = await readLocationBalance(values.productId, values.locationId);
     revalidatePath('/stock');

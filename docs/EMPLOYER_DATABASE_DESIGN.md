@@ -5,9 +5,9 @@
 
 ## Purpose
 
-This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, and audit events fit together. The SQL source of truth is in [`db/001_initial.sql`](../db/001_initial.sql), [`db/002_inventory_controls.sql`](../db/002_inventory_controls.sql), [`db/003_product_catalog_writes.sql`](../db/003_product_catalog_writes.sql), [`db/004_seed_demo_location.sql`](../db/004_seed_demo_location.sql), [`db/005_restrict_stock_movement_products.sql`](../db/005_restrict_stock_movement_products.sql), [`db/006_seed_demo_outlet.sql`](../db/006_seed_demo_outlet.sql), and [`db/007_seed_demo_inventory.sql`](../db/007_seed_demo_inventory.sql); operational commands are in [`DATABASE.md`](DATABASE.md).
+This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`010`](../db/010_authenticated_actor_foreign_keys.sql); notable files include the product and inventory controls, demo seed, auth/session schema, authenticated audit function, and actor foreign keys. Operational commands are in [`DATABASE.md`](DATABASE.md).
 
-The current web application includes local-development catalog, stock, and movement-activity screens. `/stock` shows active products' balances and reorder attention for a selected location and provides receive and manual sale-deduction forms. `/activity` filters signed movement rows by location, type, name, SKU, or reason. The app has no authentication; current stock actions use `APP_DATABASE_URL` and pass a NULL actor ID. The local database has migrations through 007 and includes the three fictional demo products at Demo Store and Demo Outlet.
+The current web application includes catalog, stock, movement activity, authentication, and role-based permissions. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys. Role enforcement is in trusted app server code; PostgreSQL connection roles remain separate.
 
 ## Entity relationship diagram
 
@@ -20,6 +20,9 @@ erDiagram
     LOCATIONS ||--o{ STOCK_MOVEMENTS : records_at
     PRODUCTS ||--o{ INVENTORY_STOCK : has_balance
     LOCATIONS ||--o{ INVENTORY_STOCK : holds_balance
+    APP_USERS ||--o{ APP_SESSIONS : authenticates
+    APP_USERS o|--o{ STOCK_MOVEMENTS : records
+    APP_USERS o|--o{ INVENTORY_AUDIT_LOG : acts
 
     CATEGORIES {
         bigint id PK
@@ -69,9 +72,26 @@ erDiagram
         jsonb after_data "nullable"
         timestamptz occurred_at
     }
+    APP_USERS {
+        uuid id PK
+        text email UK
+        text display_name
+        text password_hash
+        text role
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    APP_SESSIONS {
+        uuid id PK
+        uuid user_id FK
+        text token_hash UK
+        timestamptz expires_at
+        timestamptz created_at
+    }
 ```
 
-`INVENTORY_AUDIT_LOG` is intentionally not drawn with a normal foreign-key connector: it stores a polymorphic `(entity_type, entity_id)` reference for product and stock-movement audit events. PostgreSQL does not enforce that pair as a foreign key. Actor IDs are also optional UUIDs without a user table or verified identity relationship in this project.
+`INVENTORY_AUDIT_LOG` is intentionally not drawn with a normal entity foreign-key connector for the entity itself: it stores a polymorphic `(entity_type, entity_id)` reference for product and stock-movement audit events, which PostgreSQL does not enforce as a single foreign key. Actor IDs are real nullable foreign keys to `APP_USERS`; they stay NULL on pre-authentication seed rows and point to the signed-in app user for new writes.
 
 ## Tables and keys
 
@@ -86,6 +106,8 @@ erDiagram
 | `save_product` | Controlled database function used by the catalog create/edit form. | Security-definer function with fixed search path; validates product fields; granted to `inventory_app`, not `PUBLIC`. Product triggers append audit changes. |
 | `stock_balances` | Read view exposing product, location, and quantity from `inventory_stock`. | A view, not a stored table or independent source of truth. |
 | `schema_migrations` | Migration version, SHA-256 checksum, and application time. | Migration version is the primary key; the runner rejects edits to a migration already recorded as applied. |
+| `app_users` | Application identity, normalized unique email, scrypt password hash, role, and active state. | UUID primary key; email case-insensitively unique; role constrained to the defined role set. |
+| `app_sessions` | Hashed opaque login token with user and expiry. | UUID primary key; user foreign key; token hash unique; raw cookie token is never persisted. |
 
 `stock_movements.created_at` is retained from the initial schema; `occurred_at` was added for the effective event time. New movements set both when written through the database function. Existing rows receive a default `occurred_at` during migration 002.
 
@@ -117,7 +139,7 @@ flowchart TD
     K -- Yes --> L[Reject; transaction rolls back]
     K -- No --> M[Update cached balance]
     M --> N[Insert stock movement]
-    N --> O[Trigger appends audit event with NULL actor]
+    N --> O[Trigger appends audit event with verified actor UUID]
     O --> P[Return movement ID]
 ```
 
@@ -147,7 +169,7 @@ To apply or upgrade the local development database from PowerShell, run `scripts
 - Migration 006 ensures both demo locations exist, even when migration 004 skipped `Demo Store` because a location was already configured.
 - Migration 007 seeds three fictional products and eight audited movement entries through the controlled product and stock functions, preserving existing matching rows.
 - `/stock` implements selected-location active-product balances, reorder attention, stock receipt, and manual sale deductions. `/activity` implements location/type/text filters and a newest-first list capped at 200 movements.
-- Migrations through 007 and database connection are verified locally. The owner reported the rollback-only `npm run db:verify-stock` check passed. Returns/adjustments UI, authentication, and deployment remain future work.
+- Migrations through 010 and database connection are verified locally. The rollback-only `npm run db:verify-stock` check passed. Initial admin creation and end-to-end role testing are pending; returns/adjustments UI and deployment remain future work.
 - No sample production or customer information is included. Use fictional data in demos.
 
 Update this document whenever a migration changes a table, column, key, relationship, constraint, index, database function, trigger, role grant, or implementation status. Keep the diagram and relationship descriptions aligned with the SQL files, and clearly separate implemented behavior from planned application features. It is also linked from the README and database operations guide.

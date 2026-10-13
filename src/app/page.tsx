@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { currentUser, hasPermission } from '@/lib/auth';
 
 const milestones = [
   { number: '01', title: 'Product catalog', description: 'Organize product identity, categories, prices, and reorder points.', status: 'Ready to explore', href: '/products', icon: '▤', ready: true },
@@ -6,7 +7,8 @@ const milestones = [
   { number: '03', title: 'Movement activity', description: 'Record receiving and manual sale deductions with a signed history.', status: 'Ready to explore', href: '/activity', icon: '↗', ready: true },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const user = await currentUser();
   return (
     <main className="home-shell">
       <section className="hero-panel">
@@ -15,8 +17,9 @@ export default function Home() {
           <h1>Know what you have.<br /><span>Track what changes.</span></h1>
           <p className="hero-description">A carefully structured inventory system, built around clear product records and a dependable history of every stock change.</p>
           <div className="hero-actions">
-            <Link href="/products" className="button button-primary">Explore product catalog <span aria-hidden="true">→</span></Link>
-            <Link href="/products/new" className="text-link">Add a product <span aria-hidden="true">↗</span></Link>
+            {!user && <Link href="/login" className="button button-primary">Sign in to inventory <span aria-hidden="true">→</span></Link>}
+            {user && hasPermission(user.role, 'catalog:read') && <Link href="/products" className="button button-primary">Explore product catalog <span aria-hidden="true">→</span></Link>}
+            {user && hasPermission(user.role, 'catalog:write') && <Link href="/products/new" className="text-link">Add a product <span aria-hidden="true">↗</span></Link>}
           </div>
         </div>
         <div className="hero-art" aria-hidden="true">
@@ -50,7 +53,7 @@ export default function Home() {
         <div><span className="principle-icon" aria-hidden="true">↺</span><span><strong>Traceable changes</strong><small>Product edits join an audit trail</small></span></div>
         <div><span className="principle-icon" aria-hidden="true">◇</span><span><strong>Built with care</strong><small>Secure patterns and clear limits</small></span></div>
       </section>
-      <p className="home-disclaimer">Local portfolio demo · Use fictional product data · Authentication is not yet implemented</p>
+      <p className="home-disclaimer">{user ? `Signed in as ${user.displayName} · Role: ${user.role}` : 'Sign in with your inventory account to explore the local portfolio demo.'}</p>
     </main>
   );
 }

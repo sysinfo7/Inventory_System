@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getDbPool } from '@/lib/db';
+import { requirePermission } from '@/lib/auth';
 
 export type ProductFormState = {
   message: string;
@@ -33,10 +34,7 @@ function validBigintId(value: string) {
 }
 
 export async function saveProductAction(productId: string | null, _previous: ProductFormState, formData: FormData): Promise<ProductFormState> {
-  // No authentication exists yet, so database writes are limited to local development.
-  if (process.env.NODE_ENV !== 'development') {
-    return { message: 'Product editing is available only in local development until sign-in is implemented.', errors: {} };
-  }
+  const actor = await requirePermission('catalog:write');
 
   const sku = readText(formData, 'sku');
   const name = readText(formData, 'name');
@@ -62,9 +60,9 @@ export async function saveProductAction(productId: string | null, _previous: Pro
 
   try {
     await getDbPool().query(
-      'SELECT save_product($1::bigint, $2::text, $3::text, $4::bigint, $5::numeric, $6::integer, $7::boolean, $8::uuid)',
+      'SELECT save_product($1::bigint, $2::text, $3::text, $4::bigint, $5::numeric, $6::integer, $7::boolean, $8::uuid, $9::uuid)',
       [productId || null, sku, name, categoryIdText || null, salePriceText || null,
-        Number(reorderPointText), status === 'active', randomUUID()],
+        Number(reorderPointText), status === 'active', randomUUID(), actor.id],
     );
   } catch (error) {
     const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;

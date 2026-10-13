@@ -1,6 +1,6 @@
 # Database setup and operations
 
-These instructions cover the local PostgreSQL 17 development database. The web app includes a local product catalog, stock-on-hand/receiving/sale-deduction screen, and movement activity page. The current demo database has migrations through 007 and sample data at two fictional locations. Do not use these development steps as production deployment instructions.
+These instructions cover the local PostgreSQL 17 development database. The web app includes a product catalog, stock workflow, movement activity, authentication, and role checks. Migrations 008–010 add application identities/sessions, authenticated audit attribution, and actor foreign keys. Do not use these local-development steps as production deployment instructions.
 
 For an employer-facing field/key diagram and explanation of the relational model, see [EMPLOYER_DATABASE_DESIGN.md](EMPLOYER_DATABASE_DESIGN.md).
 
@@ -36,6 +36,9 @@ The current migration files are:
 | `db/005_restrict_stock_movement_products.sql` | Updates the stock function to require an active product while holding a `FOR SHARE` lock, preventing a concurrent deactivation from racing with a new movement. |
 | `db/006_seed_demo_outlet.sql` | Ensures `Demo Store` and `Demo Outlet` exist, including when migration 004 skipped `Demo Store` for a preconfigured database; preserves operator-configured locations. |
 | `db/007_seed_demo_inventory.sql` | Creates three fictional retail products and eight receiving/sale movements through audited database functions when equivalent records are absent. |
+| `db/008_authentication_permissions.sql` | Adds application users and revocable hashed-token sessions plus runtime grants. |
+| `db/009_authenticated_audit.sql` | Adds the verified-actor overload of the product save function while preserving migration seeding compatibility. |
+| `db/010_authenticated_actor_foreign_keys.sql` | Enforces that non-null product and movement audit actors reference an application user. |
 
 For an existing checkout/database, the local upgrade wrapper starts PostgreSQL if needed, applies any unapplied migrations, and checks the connection:
 
@@ -43,7 +46,7 @@ For an existing checkout/database, the local upgrade wrapper starts PostgreSQL i
 .\scripts\setup-database.ps1
 ```
 
-This applies pending numbered migrations and checks the connection. Migrations through 007 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
+This applies pending numbered migrations and checks the connection. Migrations through 010 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
 
 ## Provision the application login
 
@@ -71,6 +74,7 @@ The URL helper stores the random credential in `.env` without displaying it and 
 - Product insert/update/delete operations remain allowed and are recorded in `inventory_audit_log` with before/after row data when applicable. Migration 002 does not backfill pre-existing product or movement rows into the audit log; it captures events from trigger installation onward.
 - Triggers reject updates/deletes to movement and audit rows and reject `TRUNCATE` on both tables for normal operations. Product catalog rows themselves are not immutable. Database owners/superusers can bypass or change these controls.
 - Migration 002 revokes `CREATE` on schema `public` from `PUBLIC`. It creates `inventory_app` as `NOLOGIN` and grants it limited reads plus stock-function execution; migration 003 adds product-function execution. It does not grant direct table writes. `inventory_runtime` is a separate local login provisioned by `npm run db:provision-app` and inherits the group role.
+- Migration 008 adds `app_users` and `app_sessions`; the application stores salted scrypt hashes and only a SHA-256 digest of the opaque browser session token. Roles are checked in trusted server code. Migration 009 lets the actor-aware catalog writer pass the authenticated user UUID to the audit trigger while preserving the legacy seeding signature. Migration 010 makes non-null movement and audit actor IDs reference a real app user.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the entity diagram and stock transaction flow, and [SECURITY.md](SECURITY.md) for limits on the actor and database-role boundaries.
 
@@ -138,8 +142,8 @@ npm run db:migrate
 npm run db:check
 ```
 
-`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001–007. Those migrations recreate both demo locations, three fictional products, and eight initial movements. Run `npm run db:provision-app` afterward to recreate the local app login. The sample records are fictional and their history starts over on reset.
+`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001–010. Those migrations recreate both demo locations, three fictional products, and eight initial movements. Run `npm run db:provision-app` and `npm run auth:bootstrap` afterward to recreate the local app login and administrator. The sample records are fictional and their history starts over on reset.
 
 ## Verification status
 
-Migrations through 007 were applied to the local database and `npm run db:check` passed. `npm run db:verify-stock` passed and rolled back its test data. The app displayed eight demo movement rows; filtering to Demo Store returned four rows. GitHub Actions success, production build, concurrent deduction behavior, backup, restore, and clean reset have not been verified in this session.
+Migrations through 010 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, `npm run db:verify-stock`, and the temporary-account `npm run auth:verify` passed. Real administrator setup, GitHub Actions success, production build (blocked by Windows junction permissions), concurrent deduction behavior, backup, restore, and clean reset remain unverified.

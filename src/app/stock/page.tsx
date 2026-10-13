@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { Suspense } from 'react';
 import { StockForms } from './stock-forms';
 import { listActiveStockProducts, listInventoryLocations, listStockItems } from '@/lib/db';
+import { requirePermission, hasPermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
 type StockPageProps = { searchParams: Promise<{ location?: QueryValue }> };
@@ -22,9 +23,7 @@ export default function StockPage({ searchParams }: StockPageProps) {
 
 async function StockContent({ searchParams }: StockPageProps) {
   await connection();
-  if (process.env.NODE_ENV !== 'development') {
-    return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Stock</p><h1>Stock demo unavailable</h1><p>Stock reads and changes are limited to local development until sign-in is implemented.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;
-  }
+  const user = await requirePermission('stock:read');
 
   const params = await searchParams;
   let locations;
@@ -59,7 +58,7 @@ async function StockContent({ searchParams }: StockPageProps) {
         <div><p className="eyebrow">Inventory / Stock</p><h1>Stock on hand</h1><p className="page-description">View current quantities and record receiving or manual sale deductions at a selected location.</p></div>
         <Link className="button button-secondary" href={`/activity?location=${encodeURIComponent(location.id)}`}>View movement activity <span aria-hidden="true">→</span></Link>
       </div>
-      <aside className="demo-notice" aria-label="Local demo notice"><span className="notice-mark" aria-hidden="true">i</span><p><strong>Manual inventory demo.</strong> Quantity records only; no payment processing, point-of-sale integration, or accounting entries. Authentication is not implemented; use fictional data on this development computer.</p></aside>
+      <aside className="demo-notice" aria-label="Inventory information"><span className="notice-mark" aria-hidden="true">i</span><p><strong>Manual inventory demo.</strong> Quantity records only; no payment processing, point-of-sale integration, or accounting entries. Stock changes are attributed to your signed-in account.</p></aside>
 
       <section className="catalog-panel stock-balance-panel" aria-labelledby="balance-heading">
         <div className="catalog-toolbar">
@@ -84,10 +83,10 @@ async function StockContent({ searchParams }: StockPageProps) {
         )}
       </section>
 
-      <section className="stock-entry-section" aria-labelledby="stock-entry-heading">
+      {hasPermission(user.role, 'stock:receive') || hasPermission(user.role, 'stock:sale') ? <section className="stock-entry-section" aria-labelledby="stock-entry-heading">
         <div className="section-heading"><div><p className="eyebrow">RECORD A CHANGE</p><h2 id="stock-entry-heading">Keep the movement history current.</h2></div><p>Every completed change is recorded with its reason, type, and time.</p></div>
-        <StockForms locations={locations} products={products} selectedLocationId={location.id} receiveRequestId={receiveRequestId} saleRequestId={saleRequestId} />
-      </section>
+        <StockForms locations={locations} products={products} selectedLocationId={location.id} receiveRequestId={receiveRequestId} saleRequestId={saleRequestId} canReceive={hasPermission(user.role, 'stock:receive')} canSell={hasPermission(user.role, 'stock:sale')} />
+      </section> : <p className="catalog-footnote">Your account has read-only stock access.</p>}
       <p className="catalog-footnote">Reorder point is compared with the current on-hand quantity at this selected location. “Current on hand” does not include reservations or open orders.</p>
     </main>
   );

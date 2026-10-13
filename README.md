@@ -4,9 +4,9 @@ A portfolio project for a small retail business to manage products and record st
 
 ## Current status
 
-The repository includes a local product catalog, stock-on-hand page, and movement activity page. The catalog supports search, add, edit, and deactivate. The stock page shows active product balances and reorder attention for a selected location, and provides receiving and manual sale-deduction forms. The activity page filters and lists signed movement rows. These app routes and writes are local-development only while authentication is absent; the current app passes a null actor ID.
+The repository includes a product catalog, stock-on-hand and movement workflows, sign-in, role-based permissions, and an administrator user-management screen. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
 
-Migrations 004–007 seed `Demo Store`, `Demo Outlet`, and three fictional retail products with audited receiving and manual-sale history. Migration 005 enforces active-product status inside the stock function. The local database is current through migration 007, its connection check passed, and the rollback-only `npm run db:verify-stock` check passed; see [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys. These schema migrations and the rollback-only `npm run db:verify-stock` check passed locally; see [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -24,6 +24,8 @@ npm run db:provision-app
 npm run db:verify-stock
 npm run dev
 ```
+
+The app requires sign-in. After `npm run db:migrate` and `npm run db:provision-app`, create your local administrator with `npm run auth:bootstrap`; this asks you to set a private password. Start `npm run dev` in a separate window to use the app or run `npm run auth:verify`. The admin page can create test users with chosen roles; a helper can also create optional random-password test accounts. See [the user manual](docs/USER_MANUAL.md) and [the security notes](docs/SECURITY.md).
 
 The local helper creates a separate 256-bit app password in `.env` without displaying it, and refuses to replace an existing app URL. The web app binds to `127.0.0.1`; do not change it to a public interface. PostgreSQL is published to the local machine at port 5433. Never commit or share `.env` or database backups.
 
@@ -51,16 +53,17 @@ npm run db:migrate
 npm run db:check
 npm run db:provision-app
 npm run db:verify-stock
+npm run auth:verify
 ```
 
 GitHub Actions is configured to run code checks and migration commands. CI success has not yet been verified for the current migrations. Local typecheck, lint, owner-reported stock workflow verification, local database connection, and two-location activity filtering have been checked. Production build and concurrent deduction behavior remain unverified.
 
 ## Security boundary
 
-The local PostgreSQL port and Next.js development server bind to loopback. Catalog and stock reads/writes are local-demo only; routes/actions are disabled outside development. The app uses a dedicated `inventory_runtime` login that inherits limited grants from the `inventory_app` group. Authentication is not implemented, so do not expose the server to untrusted users or use real customer data. The stock action passes NULL actor IDs; activity cannot identify a human user. See [SECURITY.md](docs/SECURITY.md).
+The local PostgreSQL port and Next.js development server bind to loopback. The app uses a dedicated `inventory_runtime` login that inherits app-operation grants from the `inventory_app` group; app user permissions are enforced server-side. AI collaboration agents are project contributors, not inventory accounts, and cannot sign in or act as users. Account lockout, password recovery, and production deployment controls remain future work. See [SECURITY.md](docs/SECURITY.md).
 
 ## Planned first features
 
 1. Returns, adjustments, and their business rules/user flows.
-2. Authentication, role permissions, verified actor identity, and deployment controls.
+2. Password recovery, account rate limiting, and session revocation when roles change.
 3. Integration/runtime concurrency coverage and CI verification before deployment.
