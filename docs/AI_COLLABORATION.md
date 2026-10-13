@@ -13,3 +13,6 @@ Validation: see SETUP_STATUS.md. One coding agent was used; no parallel agents w
 Remaining work: inventory workflows, database concurrency tests, authentication, and deployment.
 
 
+
+Database verification: owner ran the setup script in external PowerShell; supplied output confirms healthy PostgreSQL container, successful schema application, and successful connection check. Agent did not independently rerun the database checks.
+
