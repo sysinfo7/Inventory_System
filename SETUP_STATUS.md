@@ -4,7 +4,7 @@
 
 - Git 2.54.0, Node.js 24.16.0, npm 11.13.0, VS Code, Docker CLI 29.5.3, Compose 5.1.4 were already installed.
 - Installed project dependencies: Next.js 16.4.0, React 19.3.0, TypeScript, Tailwind CSS, ESLint, pg and pg types. Exact versions are in package-lock.json.
-- Initialized local Git repository on main. Commit identity configured locally for sysinfo7 with the supplied email. Public GitHub destination approved: sysinfo7/inventory-system. Local commits are saved; remote creation and upload remain pending.
+- Initialized local Git repository on main. Commit identity configured locally for sysinfo7 with the supplied email. Public GitHub destination approved: sysinfo7/Inventory_System. Local commits are saved; remote repository created by the owner; upload remains pending.
 - PostgreSQL container is healthy. The owner ran scripts/setup-database.ps1 successfully in external PowerShell on October 13, 2026: Docker server 29.8.2, schema applied, and PostgreSQL connection verified. This restricted agent session still cannot access the Docker named pipe.
 - Generated local database credentials in ignored .env. The example file contains placeholders only.
 
@@ -23,16 +23,17 @@
 ## Needs from project owner
 
 1. Retail inventory confirmed; proposed TypeScript/Next.js stack remains the working default.
-2. Confirmed: sysinfo7/inventory-system, public.
+2. Confirmed: sysinfo7/Inventory_System, public.
 3. Git commit identity supplied and configured.
 4. Docker engine and PostgreSQL setup complete.
 5. Complete GitHub sign-in personally when prompted; do not share passwords or tokens in chat.
 
 ## Remaining work
 
-Create the public GitHub repository, push saved commits, and verify CI. Then implement retail inventory features against agreed acceptance criteria.
+Push saved commits to the public GitHub repository and verify CI. Then implement retail inventory features against agreed acceptance criteria.
 
 
 Database setup fallback: run scripts/setup-database.ps1 in a normal PowerShell terminal. Named-pipe access could not be granted by this session's permission interface.
+
 
 
