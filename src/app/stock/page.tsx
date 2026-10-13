@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
 import { randomUUID } from 'node:crypto';
+import { Suspense } from 'react';
 import { StockForms } from './stock-forms';
 import { listActiveStockProducts, listInventoryLocations, listStockItems } from '@/lib/db';
 
@@ -11,7 +12,15 @@ function firstValue(value: QueryValue) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function StockPage({ searchParams }: StockPageProps) {
+export default function StockPage({ searchParams }: StockPageProps) {
+  return (
+    <Suspense fallback={<main className="page-shell"><section className="loading-panel" aria-busy="true"><p className="eyebrow">Inventory / Stock</p><h1>Stock on hand</h1><p>Loading current stock…</p></section></main>}>
+      <StockContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function StockContent({ searchParams }: StockPageProps) {
   await connection();
   if (process.env.NODE_ENV !== 'development') {
     return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Stock</p><h1>Stock demo unavailable</h1><p>Stock reads and changes are limited to local development until sign-in is implemented.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;

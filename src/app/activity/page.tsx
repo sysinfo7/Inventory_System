@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
+import { Suspense } from 'react';
 import { listInventoryLocations, listStockActivity } from '@/lib/db';
 
 type QueryValue = string | string[] | undefined;
@@ -11,7 +12,15 @@ function firstValue(value: QueryValue) {
 
 const movementTypes = ['receiving', 'sale', 'return', 'adjustment'] as const;
 
-export default async function ActivityPage({ searchParams }: ActivityPageProps) {
+export default function ActivityPage({ searchParams }: ActivityPageProps) {
+  return (
+    <Suspense fallback={<main className="page-shell"><section className="loading-panel" aria-busy="true"><p className="eyebrow">Inventory / Activity</p><h1>Movement history</h1><p>Loading stock activity…</p></section></main>}>
+      <ActivityContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function ActivityContent({ searchParams }: ActivityPageProps) {
   await connection();
   if (process.env.NODE_ENV !== 'development') {
     return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Activity</p><h1>Activity demo unavailable</h1><p>Movement history is limited to local development until sign-in is implemented.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;
