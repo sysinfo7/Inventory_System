@@ -2,8 +2,8 @@ import Link from 'next/link';
 
 const milestones = [
   { number: '01', title: 'Product catalog', description: 'Organize product identity, categories, prices, and reorder points.', status: 'Ready to explore', href: '/products', icon: '▤', ready: true },
-  { number: '02', title: 'Stock movements', description: 'Receive stock and record issues with a traceable movement history.', status: 'In progress', href: '#planned', icon: '↗', ready: false },
-  { number: '03', title: 'Inventory insights', description: 'See stock by location and understand which items need attention.', status: 'Planned', href: '#planned', icon: '◫', ready: false },
+  { number: '02', title: 'Stock by location', description: 'View current on-hand quantities and low-stock attention for each location.', status: 'Ready to explore', href: '/stock', icon: '◫', ready: true },
+  { number: '03', title: 'Movement activity', description: 'Record receiving and manual sale deductions with a signed history.', status: 'Ready to explore', href: '/activity', icon: '↗', ready: true },
 ];
 
 export default function Home() {
@@ -38,7 +38,7 @@ export default function Home() {
               <div className="milestone-top"><span className="milestone-number">{item.number}</span><span className="milestone-icon" aria-hidden="true">{item.icon}</span></div>
               <span className={`milestone-status ${item.ready ? 'ready-status' : ''}`}><span aria-hidden="true">●</span> {item.status}</span>
               <h3>{item.title}</h3><p>{item.description}</p>
-              {item.ready ? <Link href={item.href} className="milestone-link">Open catalog <span aria-hidden="true">→</span></Link>
+              {item.ready ? <Link href={item.href} className="milestone-link">Open {item.title.toLowerCase()} <span aria-hidden="true">→</span></Link>
                 : <span className="milestone-link planned-link">On the roadmap</span>}
             </article>
           ))}

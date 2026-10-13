@@ -27,6 +27,89 @@ export type CatalogProduct = {
 
 export type ProductCategory = { id: string; name: string };
 
+export type InventoryLocation = { id: string; name: string };
+export type StockItem = {
+  id: string;
+  sku: string;
+  name: string;
+  reorderPoint: number;
+  quantity: string;
+};
+export type StockActivity = {
+  id: string;
+  productId: string;
+  sku: string;
+  productName: string;
+  locationId: string;
+  locationName: string;
+  quantityDelta: string;
+  movementType: 'receiving' | 'sale' | 'return' | 'adjustment';
+  reason: string;
+  occurredAt: string;
+};
+
+export async function listInventoryLocations(): Promise<InventoryLocation[]> {
+  const result = await getDbPool().query('SELECT id, name FROM locations ORDER BY lower(name), id');
+  return result.rows.map((row): InventoryLocation => ({ id: String(row.id), name: row.name }));
+}
+
+export async function listStockItems(locationId: string): Promise<StockItem[]> {
+  const result = await getDbPool().query(`
+    SELECT p.id, p.sku, p.name, p.reorder_point, coalesce(b.quantity, 0)::text AS quantity
+    FROM products AS p
+    LEFT JOIN stock_balances AS b ON b.product_id = p.id AND b.location_id = $1::bigint
+    WHERE p.active = true
+    ORDER BY lower(p.name), p.id
+    LIMIT 500
+  `, [locationId]);
+  return result.rows.map((row): StockItem => ({
+    id: String(row.id), sku: row.sku, name: row.name,
+    reorderPoint: row.reorder_point, quantity: row.quantity,
+  }));
+}
+
+export async function listActiveStockProducts() {
+  const result = await getDbPool().query(`
+    SELECT id, sku, name FROM products WHERE active = true ORDER BY lower(name), id LIMIT 500
+  `);
+  return result.rows.map((row) => ({ id: String(row.id), sku: row.sku, name: row.name }));
+}
+
+export async function readLocationBalance(productId: string, locationId: string): Promise<string> {
+  const result = await getDbPool().query(`
+    SELECT coalesce((SELECT quantity FROM stock_balances
+      WHERE product_id = $1::bigint AND location_id = $2::bigint), 0)::text AS quantity
+  `, [productId, locationId]);
+  return result.rows[0].quantity;
+}
+
+export async function listStockActivity(filters: {
+  locationId: string;
+  movementType: string;
+  search: string;
+}): Promise<StockActivity[]> {
+  const result = await getDbPool().query(`
+    SELECT m.id, m.product_id, p.sku, p.name AS product_name, m.location_id,
+           l.name AS location_name, m.quantity_delta, m.movement_type, m.reason, m.occurred_at
+    FROM stock_movements AS m
+    JOIN products AS p ON p.id = m.product_id
+    JOIN locations AS l ON l.id = m.location_id
+    WHERE ($1::text = '' OR m.location_id = NULLIF($1, '')::bigint)
+      AND ($2::text = 'all' OR m.movement_type = $2::text)
+      AND ($3::text = '' OR p.sku ILIKE '%' || $3 || '%'
+        OR p.name ILIKE '%' || $3 || '%' OR m.reason ILIKE '%' || $3 || '%')
+    ORDER BY m.occurred_at DESC, m.id DESC
+    LIMIT 200
+  `, [filters.locationId, filters.movementType, filters.search]);
+  return result.rows.map((row): StockActivity => ({
+    id: String(row.id), productId: String(row.product_id), sku: row.sku,
+    productName: row.product_name, locationId: String(row.location_id),
+    locationName: row.location_name, quantityDelta: String(row.quantity_delta),
+    movementType: row.movement_type, reason: row.reason,
+    occurredAt: row.occurred_at.toISOString(),
+  }));
+}
+
 // Return only fields the catalog needs, not raw PostgreSQL rows.
 export async function listCatalogProducts(search: string, status: 'active' | 'inactive' | 'all') {
   const pool = getDbPool();

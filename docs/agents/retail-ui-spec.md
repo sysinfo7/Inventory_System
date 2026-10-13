@@ -1,6 +1,6 @@
 # Retail inventory UI/UX specification
 
-Status: design and review reference. The product catalog is implemented for local development; other workflows remain proposed and are not represented as working screens. Business and authorization assumptions needing approval are called out below.
+Status: design and review reference. Product catalog, selected-location stock page, receive/manual sale-deduction forms, and filtered activity page are implemented for local development. A dashboard, returns/adjustments UI, and authentication remain proposals. This document retains recommended behavior beyond what the current screens implement; runtime DB verification and screenshot review are pending migrations 004/005 and owner-side database access.
 
 ## Product principles
 
@@ -19,7 +19,7 @@ Primary navigation, in this order:
 3. Stock — receive or issue stock; optionally choose a task entry point for the selected action.
 4. Activity — searchable, filterable movement ledger.
 
-A persistent location selector scopes dashboard figures and product stock. Activity can filter to a location or all locations. Keep the current location visible in page heading and form summary. On narrow screens, collapse navigation behind a labeled menu and retain the location selector near the page title.
+A location selector scopes the current `/stock` page; `/activity` can filter to a location or all locations. There is no dashboard or persistent global selector yet. Keep the current location visible in the page heading and form summary. On narrow screens, collapse navigation behind a labeled menu and retain the location selector near the page title.
 
 ## Dashboard flow and content
 
@@ -57,6 +57,8 @@ A persistent location selector scopes dashboard figures and product stock. Activ
 
 ## Receive stock flow
 
+**Implemented on `/stock` (local development only).** The current form selects a location and active product, accepts positive whole units and a required 1–300 character reason, previews the change, and shows a success or validation/stock error. The action passes a generated request UUID and NULL actor ID. The database function requires an active product and serializes the balance update. Runtime integration remains pending owner application of migrations 004/005 and execution of `npm run db:verify-stock`. Reorder attention compares each location's quantity with the product-level reorder point; the schema does not define a separate threshold per location.
+
 1. Start from dashboard, Stock, a low-stock row, or product detail.
 2. Select product (search by SKU/name), location, and positive whole-unit quantity. Enter a reason/reference note if the final API supports it; show concise suggestions such as “Supplier delivery” without forcing invented supplier data.
 3. Review summary: “Add 12 units of SKU-123 to Main Store”.
@@ -67,7 +69,7 @@ Fields and confirmation must distinguish a quantity addition from a receipt of m
 
 ## Sales deduction / stock issue flow
 
-Requirements currently call for rejecting deductions above available stock; sales entry versus POS integration remains unresolved. For a manual MVP, propose the neutral task name “Record stock issue” with a required issue type/reason and a “Sale” option if approved. Do not imply an integrated checkout or payment capture.
+**Implemented on `/stock` as “Record manual sale deduction” (local development only).** The user enters a positive unit count and required reason; the ledger stores the change as a negative delta. Oversells are rejected by the database function and the action reports current on-hand after that database error. This is manual inventory tracking, not POS integration, payment processing, or accounting.
 
 1. Select product, location, and quantity to remove (positive units in the form; the UI communicates “Subtract” while the ledger stores a negative delta).
 2. Choose or enter reason, e.g. Sale, Damage, Internal use; final reason set is a business decision.
@@ -76,6 +78,8 @@ Requirements currently call for rejecting deductions above available stock; sale
 5. Success shows the signed movement and resulting balance; do not show payment totals unless an approved sales data model supports them.
 
 ## Activity / audit history
+
+**Implemented on `/activity` (local development only).** The current filters are location, movement type, and text matching product name, SKU, or reason. The newest-first list shows UTC timestamp, product/SKU, location, movement type, signed quantity, and reason; it returns up to 200 rows. It does not currently filter by date or actor, show resulting balance, or expose movement detail/ID in the table. Actor identity is blank because authentication is absent and the stock action passes NULL.
 
 - Present an append-oriented movement list with newest first and filters for date range, product/SKU, location, movement type/reason, and actor if available. Include a clear reset action and active-filter chips.
 - Each row: timestamp with timezone/context, product name and SKU, location, signed unit delta (“+12 units” / “−2 units”), resulting balance if the API supplies a trustworthy point-in-time value, reason/reference, actor if available, and stable movement ID in detail view.
@@ -110,8 +114,8 @@ These are in the requirements but not yet specified at business-rule level. Prop
 | Product identity | `products.id`, `sku`, `name` | Keep SKU visible in search results and movement rows. |
 | Reorder attention | `products.reorder_point` | Compare with current on-hand within the selected location only if the business defines that threshold per location; otherwise clarify whether threshold is global. |
 | Location | `locations.id`, `name` | Always show location on balances and stock writes. |
-| Stock event | `stock_movements.product_id`, `location_id`, `quantity_delta`, `reason`, `created_at` | Render delta with sign and reason. Current schema has no actor, movement category, external reference, or correction link. |
-| Balance | `stock_balances` view, sum of movement deltas grouped by product/location | Label as current on-hand. Empty sum may need to display as zero even though the view contains no row. |
+| Stock event | `stock_movements.product_id`, `location_id`, `quantity_delta`, `movement_type`, `reason`, `occurred_at`, nullable `actor_id` | Render delta with sign and reason. Current app passes NULL actor. External POS reference and correction links are not implemented. |
+| Balance | `stock_balances` view over the transactionally maintained `inventory_stock` projection | Label as current on-hand. A missing product/location projection displays as zero. The movement history remains the ledger; writes update both in one function call. |
 | Category and price | `products.category_id`, `categories.name`, and `products.sale_price` are available after migration 002 | Category and nonnegative decimal amount are editable. Currency is not configured; do not imply a specific currency or accounting valuation. |
 | Availability | Not modeled beyond movement-derived balance | Do not imply reservations, in-flight orders, or sellable stock beyond the recorded on-hand count. |
 
@@ -135,4 +139,5 @@ These are in the requirements but not yet specified at business-rule level. Prop
 - A deduction above current on-hand is blocked with the latest available amount.
 - Success and error states are truthful under failed or duplicated requests.
 - Activity history makes product, SKU, location, signed delta, reason, and timestamp easy to scan.
+- Current `/activity` supports location/type/name/SKU/reason filters and displays the latest 200 rows; date and actor filters, resulting balances, and movement detail links remain future enhancements.
 - Keyboard, screen-reader, contrast, mobile reflow, and focus behavior satisfy the criteria above.

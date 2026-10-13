@@ -5,9 +5,9 @@
 
 ## Purpose
 
-This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, and audit events fit together. The SQL source of truth is in [`db/001_initial.sql`](../db/001_initial.sql), [`db/002_inventory_controls.sql`](../db/002_inventory_controls.sql), and [`db/003_product_catalog_writes.sql`](../db/003_product_catalog_writes.sql); operational commands are in [`DATABASE.md`](DATABASE.md).
+This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, and audit events fit together. The SQL source of truth is in [`db/001_initial.sql`](../db/001_initial.sql), [`db/002_inventory_controls.sql`](../db/002_inventory_controls.sql), [`db/003_product_catalog_writes.sql`](../db/003_product_catalog_writes.sql), [`db/004_seed_demo_location.sql`](../db/004_seed_demo_location.sql), and [`db/005_restrict_stock_movement_products.sql`](../db/005_restrict_stock_movement_products.sql); operational commands are in [`DATABASE.md`](DATABASE.md).
 
-The current web application includes a local-development product catalog for search, create, edit, and deactivate. Stock receiving and issue screens remain planned; the app does not yet authenticate users or call the database stock-write function. Migration 003 adds a controlled catalog-write function and restricted function-owner role; it must be applied and the limited runtime login provisioned before catalog changes can be saved locally.
+The current web application includes local-development catalog, stock, and movement-activity screens. `/stock` shows active products' balances and reorder attention for a selected location and provides receive and manual sale-deduction forms. `/activity` filters signed movement rows by location, type, name, SKU, or reason. The app has no authentication; current stock actions use `APP_DATABASE_URL` and pass a NULL actor ID. The owner reported migrations 003 and runtime-role provisioning succeeded. Migrations 004/005 remain pending and were not independently applied here.
 
 ## Entity relationship diagram
 
@@ -107,24 +107,27 @@ flowchart TD
     D --> E{Same request details?}
     E -- Yes --> F[Return original movement ID]
     E -- Different details --> X[Reject request-key reuse]
-    E -- No prior movement --> G[Create balance row if absent]
+    E -- No prior movement --> G[Lock product row FOR SHARE]
     C -- No --> G
-    G --> H[Lock product/location balance row]
-    H --> I{Would quantity become negative?}
-    I -- Yes --> J[Reject; transaction rolls back]
-    I -- No --> K[Update cached balance]
-    K --> L[Insert stock movement]
-    L --> M[Trigger appends audit event]
-    M --> N[Return movement ID]
+    G --> H{Product active?}
+    H -- No --> X[Reject inactive or missing product]
+    H -- Yes --> I[Create balance row if absent]
+    I --> J[Lock product/location balance row]
+    J --> K{Would quantity become negative?}
+    K -- Yes --> L[Reject; transaction rolls back]
+    K -- No --> M[Update cached balance]
+    M --> N[Insert stock movement]
+    N --> O[Trigger appends audit event with NULL actor]
+    O --> P[Return movement ID]
 ```
 
-The function validates a nonzero delta, supported movement type, movement direction for receiving/returns/sales, and a nonblank reason. The row lock serializes concurrent writes for the same product/location. An optional request UUID provides idempotency for matching retries and rejects reuse for different movement details. Product insert/update/delete triggers record before/after product data; a stock-movement trigger records new movement events.
+The function validates a nonzero delta, supported movement type, movement direction for receiving/returns/sales, and a nonblank reason. Migration 005 locks the product row `FOR SHARE` and requires it to be active, preventing a concurrent deactivation from racing with a new stock movement. The balance row lock serializes writes for the same product/location. An optional request UUID provides idempotency for matching retries and rejects reuse for different movement details. Product insert/update/delete triggers record before/after product data; a stock-movement trigger records new movement events. The current app passes `NULL` as actor, so those events do not identify a human user.
 
 ## Security and audit boundaries
 
 Migration 002 creates `inventory_app` as a `NOLOGIN` role with limited reads and stock-function execution; migration 003 adds product-function execution. Security-definer routines are owned by the separate `inventory_function_owner` `NOLOGIN` role with only the table and sequence privileges they need. Their fixed `search_path` is `pg_catalog, public, pg_temp`, with the temporary schema last. The product form calls `save_product` with parameterized values using `APP_DATABASE_URL`; `inventory_runtime` is provisioned as a separate login that inherits the group role. The route and write action are disabled outside local development. This is a useful local boundary, not a claim of production-grade security.
 
-Audit actor IDs are nullable and caller-controlled. They do not verify a human identity. Migration 002 records events after its triggers are installed and does not backfill earlier product or movement events. Movement and audit rows reject ordinary updates/deletes, with truncate guards for those history tables; database owners and administrators can change or bypass these controls. Product changes remain allowed and generate audit events when their triggers execute.
+Audit actor IDs are nullable and caller-controlled. They do not verify a human identity. Migration 002 records events after its triggers are installed and does not backfill earlier product or movement events. Movement and audit rows reject ordinary updates/deletes, with truncate guards for those history tables; database owners and administrators can change or bypass these controls. Product changes remain allowed and generate audit events when their triggers execute. Routes/actions are restricted to local development until authentication exists.
 
 This is an inventory history, not a complete financial accounting ledger. It does not implement double-entry bookkeeping, inventory valuation, reconciliation, close periods, payments, taxes, or compliance controls. See [`SECURITY.md`](SECURITY.md) for additional limits and deployment work.
 
@@ -138,8 +141,11 @@ To apply or upgrade the local development database from PowerShell, run `scripts
 
 - Migration 001 defines the initial products, locations, movements, and aggregate balance view.
 - Migration 002 defines categories, normalized SKU uniqueness, cached balances, typed movement events, audit triggers, the controlled stock function, and group-role grants.
-- Migration 003 defines the controlled catalog-write function and restricted function owner. The owner reported migration 002 applied; the agent could not independently connect to the owner's database to apply/verify migration 003 or provision the runtime login.
-- The web app includes a local catalog UI, but its database-backed behavior still requires migration 003 and app-role setup. Stock-entry, authentication, and reporting screens remain future work.
+- Migration 003 defines the controlled catalog-write function and restricted function owner. The owner reported migrations 003 and `inventory_runtime` provisioning succeeded.
+- Migration 004 inserts `Demo Store` only if no location exists.
+- Migration 005 updates the stock function to require an active product while holding a `FOR SHARE` lock.
+- `/stock` implements selected-location active-product balances, reorder attention, stock receipt, and manual sale deductions. `/activity` implements location/type/text filters and a newest-first list capped at 200 movements.
+- Migration 004/005 application and the stock database workflow remain unverified in the owner's database. The rollback-only `npm run db:verify-stock` script is implemented but has not been run there. Returns/adjustments UI, authentication, and deployment remain future work.
 - No sample production or customer information is included. Use fictional data in demos.
 
 Update this document whenever a migration changes a table, column, key, relationship, constraint, index, database function, trigger, role grant, or implementation status. Keep the diagram and relationship descriptions aligned with the SQL files, and clearly separate implemented behavior from planned application features. It is also linked from the README and database operations guide.

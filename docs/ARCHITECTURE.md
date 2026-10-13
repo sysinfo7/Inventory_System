@@ -2,7 +2,7 @@
 
 ## Current state
 
-The repository combines a Next.js App Router product catalog with a PostgreSQL 17 development database. The catalog supports server-rendered search/list, add, edit, and inactive status. Stock-entry and insight screens remain planned. Migration 002 defines the controlled stock-write function, but the current application does not call it.
+The repository combines a Next.js App Router product catalog and local inventory workflow with a PostgreSQL 17 development database. The catalog supports search/list, add, edit, and deactivate. `/stock` shows active product balances and reorder attention for a selected location and provides receiving and manual sale-deduction forms. `/activity` filters and displays signed movement rows. These routes and actions are development-only while authentication is absent. The stock action calls the controlled database function through `APP_DATABASE_URL` and passes a NULL actor ID.
 
 The stack is TypeScript, React, Next.js, Tailwind CSS, PostgreSQL, and the `pg` driver. `npm run db:migrate` applies numbered SQL files. The runner serializes migration runs with an advisory lock, stores a SHA-256 checksum for each applied version, and wraps each migration and ledger record in one transaction. An applied SQL file whose checksum changes is rejected; follow-up schema changes belong in a new numbered migration. There is no automatic rollback command.
 
@@ -58,11 +58,11 @@ erDiagram
 
 `inventory_audit_log` is an additional append-only table. Triggers record product inserts, updates, and deletes, with before/after JSON for product changes, and stock-movement inserts with the movement row. Actor and request UUIDs are nullable. Migration 002 does not backfill legacy product or movement rows into the audit log; it records events from the time those triggers are installed. `stock_movements` also has an append-only trigger; corrections are represented by a compensating movement. Triggers reject row updates/deletes and `TRUNCATE` on movement and audit history during normal operations. Product changes themselves remain allowed and are recorded. The audit records are inventory history, not a complete financial ledger.
 
-Migration 002 adds categories with case-insensitive trimmed-name uniqueness, optional `sale_price`, an `active` flag, typed movements (`receiving`, `sale`, `return`, `adjustment`), optional unit price, actor/request identifiers, an occurred-at timestamp, and normalized case-insensitive SKU uniqueness. Migration 003 adds the `save_product` security-definer function, available to the limited app role; it validates catalog inputs, writes product rows, and lets existing audit triggers record changes. Existing negative movement balances cause migration 002 to fail rather than silently initializing an invalid cached balance. Legacy nonnegative movement sums initialize `inventory_stock`; legacy rows are not copied into `inventory_audit_log`.
+Migration 002 adds categories with case-insensitive trimmed-name uniqueness, optional `sale_price`, an `active` flag, typed movements (`receiving`, `sale`, `return`, `adjustment`), optional unit price, actor/request identifiers, an occurred-at timestamp, and normalized case-insensitive SKU uniqueness. Migration 003 adds the `save_product` security-definer function, available to the limited app role; it validates catalog inputs, writes product rows, and lets existing audit triggers record changes. Migration 004 seeds a `Demo Store` only if the database has no locations. Migration 005 enforces active-product status inside `record_stock_movement`: it locks the product row `FOR SHARE`, so a concurrent deactivation cannot race with a new stock movement. Existing negative movement balances cause migration 002 to fail rather than silently initializing an invalid cached balance. Legacy nonnegative movement sums initialize `inventory_stock`; legacy rows are not copied into `inventory_audit_log`.
 
 ## Stock write path
 
-The SQL stock function is implemented, although the current application has no form, server action, or API that calls it. The caller supplies the actor UUID and optional request UUID; no authentication currently verifies the actor's identity. A repeated request UUID with matching movement details returns the existing movement ID. Reusing that UUID for different details raises an error. The catalog server action calls `save_product` through a separate `APP_DATABASE_URL` login, validates fields server-side, and revalidates the catalog after a confirmed write. It is available only when `NODE_ENV` is `development`.
+The SQL stock function and its application forms/actions are implemented. The stock action validates positive whole-unit quantities, IDs, request UUIDs, and reason text, then calls `record_stock_movement` through `APP_DATABASE_URL` with `actor_id = NULL`. The function accepts an optional request UUID; a matching retry returns the original movement ID and reusing that UUID for different details raises an error. The product row is checked as active under `FOR SHARE`; then the balance row is locked, a negative result is rejected, and the balance update, movement insert, and audit trigger complete atomically. The `/stock` and `/activity` route/action paths return an unavailable state outside `NODE_ENV=development`. The catalog actions have the same local-development boundary.
 
 ```mermaid
 flowchart TD
@@ -71,16 +71,19 @@ flowchart TD
     C -- Yes --> D[Lock request key and check for prior movement]
     D --> E{Same request details already stored?}
     E -- Yes --> F[Return prior movement ID]
-    E -- No prior row --> G[Create zero balance row if needed]
+    E -- No prior row --> G[Lock product row FOR SHARE]
     E -- Different details --> H[Raise request-key conflict]
     C -- No --> G
-    G --> I[Lock product/location balance row]
-    I --> J{Would new balance be negative?}
-    J -- Yes --> K[Raise insufficient-stock error; statement rolls back]
-    J -- No --> L[Update cached balance]
-    L --> M[Insert append-only movement]
-    M --> N[Audit trigger records event]
-    N --> O[Return movement ID]
+    G --> I{Product active?}
+    I -- No --> R[Reject inactive or missing product]
+    I -- Yes --> J[Create zero balance row if needed]
+    J --> K[Lock product/location balance row]
+    K --> L{Would new balance be negative?}
+    L -- Yes --> M[Raise insufficient-stock error; statement rolls back]
+    L -- No --> N[Update cached balance]
+    N --> O[Insert append-only movement]
+    O --> P[Audit trigger records event with NULL actor]
+    P --> Q[Return movement ID]
 ```
 
 ### Pseudocode matching the database function
@@ -96,6 +99,10 @@ record_stock_movement(product, location, delta, type, reason, actor?, request?, 
         if it exists with different details:
             reject the request
 
+    lock the product row FOR SHARE
+    if the product is missing or inactive:
+        reject the movement
+
     create the product/location balance row with zero if absent
     lock that balance row
     if current balance + delta is negative:
@@ -103,15 +110,15 @@ record_stock_movement(product, location, delta, type, reason, actor?, request?, 
 
     update cached balance by delta
     insert the movement record
-    let the audit trigger append the audit event
+    let the audit trigger append an audit event (the current app supplies NULL actor)
     return the new movement ID
 ```
 
 ## Database role boundary and limits
 
-Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migration 003 grants it execution of `save_product`, not direct catalog table writes. It transfers stock, product, and audit security-definer routines to `inventory_function_owner`, a no-login role with only the table/sequence grants needed by those routines. `scripts/provision-app-role.mjs` provisions `inventory_runtime` with a separate password and only the `inventory_app` membership. Migration credentials remain in `DATABASE_URL`; app reads/writes use `APP_DATABASE_URL`. The local provisioning script verifies that the runtime login has no elevated role attributes or unexpected memberships.
+Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migration 003 grants it execution of `save_product`, not direct catalog table writes. It transfers stock, product, and audit security-definer routines to `inventory_function_owner`, a no-login role with only the table/sequence grants needed by those routines. `scripts/provision-app-role.mjs` provisions `inventory_runtime` with a separate password and only the `inventory_app` membership. Migration credentials remain in `DATABASE_URL`; app reads/writes use `APP_DATABASE_URL`. The owner reported that migration 003 and runtime-role provisioning succeeded; migrations 004 and 005 remain pending and were not independently applied here.
 
-The security-definer functions run with `inventory_function_owner` privileges and fix their `search_path` to `pg_catalog, public, pg_temp`, with the temporary schema last. This is a useful boundary for the intended local application role, not a claim of production-grade security. Database owners/superusers can change functions, triggers, or data. There is no authentication in the application, actor attribution is intentionally blank for catalog writes, and product/stock workflows must not be exposed beyond local development.
+The security-definer functions run with `inventory_function_owner` privileges and fix their `search_path` to `pg_catalog, public, pg_temp`, with the temporary schema last. This is a useful boundary for the intended local application role, not a claim of production-grade security. Database owners/superusers can change functions, triggers, or data. There is no authentication in the application, and both catalog and stock actions currently use blank actor attribution. Product, stock, and activity workflows must not be exposed beyond local development.
 
 ## Inventory audit trail and accounting boundary
 
@@ -119,13 +126,14 @@ The movement and audit tables can support an inventory history of quantity chang
 
 ## Screenshot evidence
 
-Screenshots are pending. The current browser preview could not reach the running local app, so no real application capture was available. Capture these exact views from a running app when a browser is available:
+Screenshots are pending. The current browser preview could not reach the running local app, so no real application capture was available. Capture these exact views from a running app after the owner applies migrations 004/005 and a browser is available:
 
 1. `docs/screenshots/home-desktop.png` — current project-status landing page at desktop width.
 2. `docs/screenshots/home-mobile.png` — current landing page at a narrow mobile viewport.
 3. `docs/screenshots/catalog.png` — active catalog list with fictional products.
 4. `docs/screenshots/product-form.png` — add/edit form and clear validation state.
-5. `docs/screenshots/stock-movement.png` — real receive/issue UI and its verified result after it is implemented.
-6. `docs/screenshots/stock-insights.png` — location balances/low-stock UI after it is implemented.
+5. `docs/screenshots/stock-on-hand.png` — selected location, active product balances, and reorder attention.
+6. `docs/screenshots/stock-movement.png` — receiving and manual sale-deduction forms, including a real success result.
+7. `docs/screenshots/activity.png` — filters and signed movement rows with fictional data.
 
 Use fictional data. Do not use mockups as screenshots or expose credentials in a capture.

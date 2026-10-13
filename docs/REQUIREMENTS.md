@@ -2,24 +2,31 @@
 
 ## Initial scope
 
-Manage retail products using unique SKUs, names, categories, sale prices, reorder points, and stock by location. Record receiving, sales deductions, returns, and adjustments with an auditable reason and timestamp.
+Manage retail products using unique SKUs, names, categories, sale prices, reorder points, and stock by location. Record receiving and sale deductions with a reason and timestamp. The broader schema supports return and adjustment movement types, but these currently have no UI workflow.
 
-## First working milestone
+## First working milestone status
 
-- [x] Create and edit products with unique SKU validation; deactivate without deleting history.
-- [ ] Receive stock and record a movement.
-- Record a sale deduction; reject deductions exceeding available stock.
-- View stock balances and low-stock products.
-- Search products by name or SKU.
+| Requirement | Implementation status | Runtime evidence |
+| --- | --- | --- |
+| Search products by name or SKU; add/edit/deactivate products. | Implemented in the local catalog UI and controlled database function. | Owner reported migrations 001–003 and app-role provisioning succeeded. |
+| Receive stock and record a movement. | Implemented on `/stock`; database action writes through `record_stock_movement`. | Migrations 004/005 are pending owner application; workflow verification script has not been run against the owner's database. |
+| Record a manual sale deduction and reject deductions above current on-hand. | Implemented on `/stock`; positive form quantity becomes a negative movement, and the database function rejects a negative resulting balance. | Code checks passed locally; database integration/oversell runtime evidence is pending. |
+| View balances and low-stock/reorder attention by location. | Implemented on `/stock` for active products at the selected location; attention appears when on-hand is at or below the product reorder point. | Requires owner application of migrations 004/005 and live local review. |
+| Search/filter movement activity. | Implemented on `/activity`, filtering by location, movement type, product name, SKU, or reason; newest-first, up to 200 rows. | Requires owner application of migrations and live local review. |
 
-The product catalog UI and save path are implemented. Database-backed saves require migration 003 and provisioning `inventory_runtime`; runtime use is limited to local development because authentication is not implemented. Receiving, sale deductions, balances, low-stock views, and tests remain to be completed.
+Atlas reports `npm run typecheck`, `npm run lint`, verification-script syntax checks, and `git diff --check` passed for the current work. No production build, stock database integration run, runtime concurrency check, or screenshots are confirmed. `npm run db:verify-stock` is implemented as a rollback-only database workflow check; it has not been executed against the owner's database.
+
+## Business and security boundaries
+
+- The stock page offers receiving and **manual sale deductions**. It does not connect to a point-of-sale system, process payments, or create accounting entries.
+- Activity is an inventory quantity history. Actor UUIDs are passed as `NULL` by the current actions because authentication is absent; no human identity is verified.
+- Stock reads and actions are restricted to local development while authentication is absent. Use fictional demo records and do not expose the app to untrusted users.
+- Returns and adjustments remain planned UI workflows despite their supported database movement types. Dashboard summary cards, supplier records, purchase orders, and POS integration are also out of current scope.
 
 ## Portfolio evidence
 
-Demonstrate input validation, SQL constraints, transactional stock changes, concurrency tests, automated CI, and documented human review of AI-generated changes. Use fictional retail data for demonstrations.
+Demonstrate server-side input validation, SQL constraints, transactionally maintained balances, idempotent retries, oversell rejection, active-product enforcement, audit events, and automated checks. Report only evidence actually collected: the rollback-only verification script's presence is not evidence that its database assertions passed. Document human review of AI-generated changes without attributing decisions or checks without evidence.
 
 ## Pending decisions
 
-Public GitHub repository: sysinfo7/Inventory_System. Pending: hosting, authentication roles, currency policy, and whether sales entry is manual or integrated with a point-of-sale system. The current schema supports categories and sale-price amounts; currency and financial valuation remain undefined.
-
-
+Public GitHub repository: `sysinfo7/Inventory_System`. Pending: hosting, authentication roles, currency policy, and whether future sales workflows remain manual or integrate with a point-of-sale system. Sale price is stored as a decimal amount, but currency and financial valuation are undefined.

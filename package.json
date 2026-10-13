@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "node --env-file-if-exists=.env scripts/db.mjs migrate",
     "db:check": "node --env-file-if-exists=.env scripts/db.mjs check",
-    "db:provision-app": "node --env-file-if-exists=.env scripts/provision-app-role.mjs"
+    "db:provision-app": "node --env-file-if-exists=.env scripts/provision-app-role.mjs",
+    "db:verify-stock": "node --env-file-if-exists=.env scripts/verify-stock-workflow.mjs"
   },
   "dependencies": {
     "next": "16.4.0",

@@ -1,28 +1,33 @@
-# Setup status
+# Setup and verification status
 
 ## Environment and project
 
-- Git, Node.js 24, npm, VS Code, Docker Desktop, and Compose were already installed.
-- Local project: TypeScript/Next.js, PostgreSQL 17, and `pg`; package versions are pinned in `package-lock.json`.
-- Public repository: https://github.com/sysinfo7/Inventory_System. Previous local commits have been pushed by the owner. This turn's database and documentation updates remain local until pushed.
-- Owner ran `scripts/setup-database.ps1` and reported migration 002 applied successfully. Migration 003 for controlled catalog writes is new and pending application; the separate `inventory_runtime` app login also needs provisioning with `npm run db:provision-app`.
+- The repository uses Node.js 24, npm, Next.js 16.4, TypeScript, PostgreSQL 17, Docker Compose, and `pg`.
+- The local PostgreSQL service is configured on loopback port `5433`; the development web server binds to `127.0.0.1`.
+- The owner previously reported migrations 001–003 and provisioning of the `inventory_runtime` app login succeeded. Migrations 004 and 005 are pending, and this agent did not independently apply or inspect them in the owner's database.
+- Migration 004 inserts `Demo Store` only when no location exists. Migration 005 makes the database stock function reject inactive/missing products while holding a `FOR SHARE` row lock.
 
-## Current validation evidence
+## Implemented application behavior
 
-- `npm run typecheck` and `npm run lint` passed for the catalog implementation; JavaScript syntax checks and `git diff --check` passed. The default Turbopack build failed because a child process exited; the Webpack build failed with EPERM while creating `.next` output. No production build has been confirmed for this change.
-- Database migration 003, role provisioning, catalog reads/writes, stock behavior, and CI remain unverified: the agent session cannot connect to localhost PostgreSQL. The owner reported migration 002 applied successfully.
-- No backup, restore, or destructive reset command has been executed.
-- The browser preview timed out reaching the locally running app; no real screenshots were captured. The manual lists the outstanding screenshots.
-- The product catalog UI is implemented, including search, active/inactive filters, add/edit forms, server-side validation, restricted database function writes, and product audit-trigger integration. Runtime DB behavior still depends on applying migration 003 and provisioning the local app login.
+- Product catalog: search, active/inactive filtering, create/edit, and deactivate through the controlled `save_product` function.
+- `/stock`: selected-location balances for active products, reorder attention for quantities at or below each product's reorder point, receiving form, and manual sale-deduction form.
+- `/activity`: location, movement-type, and name/SKU/reason filters; newest-first signed movement rows, capped at 200 results.
+- Stock writes call `record_stock_movement` through `APP_DATABASE_URL`. The function validates active product status, direction, reason, request-token idempotency, and nonnegative balances transactionally. The current route passes a NULL actor UUID.
+- Stock routes and actions are available only in local development while authentication is absent. These are quantity records; they do not process payments or create accounting entries.
 
-## Security and scope limitations
+## Verification evidence
 
-- The database audit records inventory movements and product metadata changes. It is not a full financial accounting or compliance system.
-- Authentication and verified human actor attribution are not implemented. Do not expose the app or enter real customer data.
-- Owner report verifies migration 002 only; it does not verify migration 003 or the new app-role login.
+- For this stock workflow, Atlas reports `npm run typecheck`, `npm run lint`, JavaScript syntax checks for the verification script, and `git diff --check` passed locally.
+- No production build, database integration run, runtime concurrency check, or screenshot was completed for this workflow.
+- `npm run db:verify-stock` is implemented to check receipt, sale deduction, same-token retry, conflicting-token rejection, oversell rejection, inactive-product rejection, resulting balance, and blank-actor audit rows. It executes its test writes in a single transaction and rolls them back. The script has not been run against the owner's database.
+- The agent session cannot connect to the owner's PostgreSQL port `5433`; owner-reported setup results are not independent verification of migrations 004/005 or the current stock actions.
+- GitHub Actions success has not been verified.
 
-## Next owner actions
+## Owner's next local steps
 
-1. Run `scripts/setup-database.ps1`, `scripts/configure-app-url.ps1`, and `npm run db:provision-app` in PowerShell, then start the app and confirm catalog reads/writes.
-2. Push the locally saved updates to the public GitHub repository and verify Actions.
-3. Capture actual landing-page and catalog screenshots when browser access is available; add stock screenshots as those screens are implemented.
+1. Review/back up any local data that matters, then run `scripts/setup-database.ps1` to apply pending migrations 004 and 005 and check the connection.
+2. Run `npm run db:verify-stock` against the configured local `APP_DATABASE_URL`; confirm the script reports success and rollback.
+3. Start `npm run dev`, review `/stock` and `/activity` with fictional data, and capture the real screenshots listed in `docs/USER_MANUAL.md`.
+4. Push the local changes and verify the GitHub Actions run.
+
+Do not expose the app to untrusted users or enter real customer data while authentication and authorization are absent.

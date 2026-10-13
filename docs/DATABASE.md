@@ -1,6 +1,6 @@
 # Database setup and operations
 
-These instructions cover the local PostgreSQL 17 development database. The web app has a local product catalog; stock-control screens remain planned. Do not use these development steps as production deployment instructions.
+These instructions cover the local PostgreSQL 17 development database. The web app includes a local product catalog, stock-on-hand/receiving/sale-deduction screen, and movement activity page. Database integration for the new stock workflow still requires the owner to apply migrations 004 and 005. Do not use these development steps as production deployment instructions.
 
 For an employer-facing field/key diagram and explanation of the relational model, see [EMPLOYER_DATABASE_DESIGN.md](EMPLOYER_DATABASE_DESIGN.md).
 
@@ -32,6 +32,8 @@ The current migration files are:
 | `db/001_initial.sql` | Products, locations, movement history, the original movement-sum balance view, and an index. |
 | `db/002_inventory_controls.sql` | Categories and product catalog fields; cached stock balances; typed, append-only movements; audit log and triggers; serialized stock function; and database-role grants. |
 | `db/003_product_catalog_writes.sql` | A validated security-definer product save function, least-privilege function owner, and grant to the application role. |
+| `db/004_seed_demo_location.sql` | Inserts `Demo Store` only when no location exists; preserves all existing configured locations. |
+| `db/005_restrict_stock_movement_products.sql` | Updates the stock function to require an active product while holding a `FOR SHARE` lock, preventing a concurrent deactivation from racing with a new movement. |
 
 For an existing checkout/database, the local upgrade wrapper starts PostgreSQL if needed, applies any unapplied migrations, and checks the connection:
 
@@ -39,7 +41,7 @@ For an existing checkout/database, the local upgrade wrapper starts PostgreSQL i
 .\scripts\setup-database.ps1
 ```
 
-This applies pending numbered migrations and checks the connection. The owner reported migration 002 applied successfully. Migration 003 is part of the catalog feature and must be applied before catalog writes work. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
+This applies pending numbered migrations and checks the connection. The owner reported migrations 003 and `inventory_runtime` provisioning succeeded. Migrations 004 and 005 remain pending and were not independently applied in this agent session. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
 
 ## Provision the application login
 
@@ -59,7 +61,8 @@ The URL helper stores the random credential in `.env` without displaying it and 
 - `locations` has a unique nonblank name.
 - `stock_movements` references one product and one location. It stores a signed nonzero bigint delta, movement type, reason, optional actor/request UUIDs, optional unit price, and event timestamp. Movement types are `receiving`, `sale`, `return`, and `adjustment`; receiving/return quantities must be positive and sale quantities negative when written through the function.
 - `inventory_stock` has one row per product/location pair and a nonnegative cached quantity. Migration 002 initializes rows from the old movement sums and aborts if any legacy balance is negative.
-- `stock_balances` is a view over `inventory_stock`. The `record_stock_movement` function locks the balance row, rejects a negative result, updates the cached quantity, and inserts the movement atomically. It supports request UUID idempotency.
+- Migration 004 seeds `Demo Store` only if the `locations` table is empty.
+- `stock_balances` is a view over `inventory_stock`. The `record_stock_movement` function requires an active product (migration 005 locks that product `FOR SHARE`), locks the balance row, rejects a negative result, updates the cached quantity, and inserts the movement atomically. It supports request UUID idempotency.
 - `save_product` is the controlled catalog create/edit/deactivate path. It validates fields and writes product rows so the audit trigger captures before/after data. The application role has no direct product-table write grant.
 - `inventory_function_owner` is a no-login role used to own the security-definer stock, product, and audit routines. It receives only the table and sequence privileges those routines need; its temporary schema `CREATE` grant is revoked in the migration.
 - Product insert/update/delete operations remain allowed and are recorded in `inventory_audit_log` with before/after row data when applicable. Migration 002 does not backfill pre-existing product or movement rows into the audit log; it captures events from trigger installation onward.
@@ -67,6 +70,16 @@ The URL helper stores the random credential in `.env` without displaying it and 
 - Migration 002 revokes `CREATE` on schema `public` from `PUBLIC`. It creates `inventory_app` as `NOLOGIN` and grants it limited reads plus stock-function execution; migration 003 adds product-function execution. It does not grant direct table writes. `inventory_runtime` is a separate local login provisioned by `npm run db:provision-app` and inherits the group role.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the entity diagram and stock transaction flow, and [SECURITY.md](SECURITY.md) for limits on the actor and database-role boundaries.
+
+## Verify the stock workflow
+
+After migrations are current and `APP_DATABASE_URL` points to the provisioned local `inventory_runtime` login, run:
+
+```powershell
+npm run db:verify-stock
+```
+
+The script checks receiving, sale deduction, identical-token retry, conflicting-token rejection, oversell rejection, inactive-product rejection, the resulting balance, and audit rows with a blank actor. It creates a temporary product and movement rows inside one explicit transaction and rolls the transaction back on success, so it leaves no test data behind. If an assertion fails, it also attempts rollback before exiting. This script has not been run against the owner's database; its presence is not a passing runtime result. It does not test concurrent deductions at runtime.
 
 ## Back up the local database
 
@@ -122,8 +135,8 @@ npm run db:migrate
 npm run db:check
 ```
 
-`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001, 002, and 003; it does not add demo products or stock. Run `npm run db:provision-app` afterward to recreate the local app login.
+`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001–005; migration 004 inserts `Demo Store` because the locations table will be empty. It does not add demo products or stock. Run `npm run db:provision-app` afterward to recreate the local app login.
 
 ## Verification status
 
-The owner reported migration 002 applied successfully. Migration 003 and the separate application login have not been independently applied or verified in this agent session; the agent could not reach port `5433`. GitHub Actions success is not verified. No backup, restore, clean reset, or migration command was executed while preparing this guide.
+The owner reported migrations 003 and app-role provisioning succeeded. Migrations 004/005 are pending and were not independently applied in this agent session; the agent could not reach port `5433`. The stock verification script has not been run against the owner database. GitHub Actions success is not verified. No backup, restore, clean reset, migration command, or database integration test was executed while preparing this guide.
