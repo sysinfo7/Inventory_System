@@ -10,6 +10,7 @@ export type StockFormValues = {
   productId: string;
   quantity: string;
   reason: string;
+  direction: 'increase' | 'decrease';
 };
 
 export type StockActionState = {
@@ -38,15 +39,20 @@ function validRequestId(value: string) {
 async function submitMovement(
   previous: StockActionState,
   formData: FormData,
-  movementType: 'receiving' | 'sale',
+  movementType: 'receiving' | 'sale' | 'return' | 'adjustment',
 ): Promise<StockActionState> {
-  const actor = await requirePermission(movementType === 'receiving' ? 'stock:receive' : 'stock:sale');
+  // Enforce each workflow's capability inside the server action as well as hiding its form.
+  const permission = movementType === 'receiving' || movementType === 'return'
+    ? 'stock:receive'
+    : movementType === 'sale' ? 'stock:sale' : 'stock:adjust';
+  const actor = await requirePermission(permission);
 
   const values: StockFormValues = {
     locationId: readText(formData, 'locationId'),
     productId: readText(formData, 'productId'),
     quantity: readText(formData, 'quantity'),
     reason: readText(formData, 'reason'),
+    direction: readText(formData, 'direction') === 'decrease' ? 'decrease' : 'increase',
   };
   const requestId = readText(formData, 'requestId');
   const errors: Record<string, string> = {};
@@ -59,12 +65,17 @@ async function submitMovement(
   if (values.reason.length < 1 || values.reason.length > 300) {
     errors.reason = 'Enter a reason between 1 and 300 characters.';
   }
+  if (movementType === 'adjustment' && !['increase', 'decrease'].includes(readText(formData, 'direction'))) {
+    errors.direction = 'Choose whether the count correction adds or removes units.';
+  }
   if (!validRequestId(requestId)) errors.requestId = 'Refresh the page and try again.';
   if (Object.keys(errors).length) {
     return { message: 'Check the fields below and try again.', errors, values, requestId: validRequestId(requestId) ? requestId : randomUUID() };
   }
 
-  const delta = movementType === 'receiving' ? values.quantity : `-${values.quantity}`;
+  const subtract = movementType === 'sale' || (movementType === 'adjustment' && values.direction === 'decrease');
+  // Forms accept positive whole units; this is where the signed database delta is chosen.
+  const delta = subtract ? `-${values.quantity}` : values.quantity;
   try {
     await getDbPool().query(
       `SELECT record_stock_movement(
@@ -76,12 +87,12 @@ async function submitMovement(
     revalidatePath('/stock');
     revalidatePath('/activity');
     return {
-      message: `${movementType === 'receiving' ? 'Received' : 'Removed'} ${values.quantity} ${values.quantity === '1' ? 'unit' : 'units'}. Current on hand: ${balance}.`,
+      message: `${movementType === 'receiving' ? 'Received' : movementType === 'return' ? 'Returned' : movementType === 'adjustment' ? `Adjusted ${values.direction === 'increase' ? 'up' : 'down'}` : 'Removed'} ${values.quantity} ${values.quantity === '1' ? 'unit' : 'units'}. Current on hand: ${balance}.`,
       errors: {}, values: { ...values, quantity: '', reason: '' }, requestId: randomUUID(), success: true,
     };
   } catch (error) {
     const dbError = typeof error === 'object' && error !== null ? error as { code?: string; message?: string } : {};
-    if (movementType === 'sale' && dbError.code === 'P0001' && dbError.message === 'Insufficient stock') {
+    if (subtract && dbError.code === 'P0001' && dbError.message === 'Insufficient stock') {
       try {
         const available = await readLocationBalance(values.productId, values.locationId);
         return {
@@ -115,4 +126,12 @@ export async function receiveStockAction(previous: StockActionState, formData: F
 
 export async function deductStockAction(previous: StockActionState, formData: FormData) {
   return submitMovement(previous, formData, 'sale');
+}
+
+export async function returnStockAction(previous: StockActionState, formData: FormData) {
+  return submitMovement(previous, formData, 'return');
+}
+
+export async function adjustStockAction(previous: StockActionState, formData: FormData) {
+  return submitMovement(previous, formData, 'adjustment');
 }

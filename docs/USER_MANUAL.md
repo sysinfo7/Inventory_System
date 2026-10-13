@@ -68,7 +68,7 @@ npm run auth:seed-test-users
 
 Type `YES` at the prompt. It prints generated passwords once in the local terminal. Save them somewhere private if needed; they are not stored in this manual or Git. Run the command again to rotate these test passwords. Their account names are `manager@inventory-demo.invalid`, `clerk@inventory-demo.invalid`, and `viewer@inventory-demo.invalid`.
 
-Sign out and try each test account. Manager can edit products and record stock; Clerk can view products but cannot add/edit them, while receiving and recording sale deductions; Read-only can inspect catalog, stock, and activity, but cannot change records. Try opening `/products/new` while read-only: the server redirects to a permission-required page. Server actions also check permission when submitted, so hidden buttons are not the security boundary.
+Sign out and try each test account. Manager can edit products, record stock, and adjust counted inventory. Clerk can receive stock, record sellable customer returns and manual sale deductions, but cannot edit products or correct counts. Read-only can inspect catalog, stock, and activity, but cannot change records. Try opening `/products/new` while read-only: the server redirects to a permission-required page. Server actions also check permission when submitted, so hidden buttons are not the security boundary.
 
 Sessions last eight hours and use HttpOnly/SameSite cookies; signing out revokes the server-side session. Passwords use salted scrypt hashes. Test accounts require explicit opt-in and are not seeded automatically. Rate limiting and account recovery are future hardening work before public deployment. See [SECURITY.md](SECURITY.md).
 
@@ -78,7 +78,9 @@ Open `/stock`. Choose a location and select **Show stock** to view active produc
 
 The local demo has two locations. **Demo Outlet** has 10 coffee units and 13 trail-mix units. **Demo Store** has 7 coffee units and 8 water bottles. All other sample product/location balances start at zero. The three sample items are Northstar Coffee Beans, Crisp Orchard Trail Mix, and Summit Steel Water Bottle; their SKUs start with `DEMO-`.
 
-To receive stock or record a manual sale deduction, choose the location and active product, enter a positive whole number of units, and provide a reason. Review the movement preview before submitting. The receiving action adds units; the sale action stores a negative quantity delta. If the sale would make stock negative, the database rejects it and the page reports the latest available quantity. Inactive products cannot receive new movements after migration 005 is applied. Each submission uses a request UUID so an identical retry does not create a duplicate movement.
+To receive stock, record a customer return, or record a manual sale deduction, choose the location and active product, enter a positive whole number of units, and provide a reason. Only return goods that are suitable to put back into sellable inventory; a return adds units, while the sale action stores a negative quantity delta. If a sale would make stock negative, the database rejects it and the page reports the latest available quantity.
+
+Managers and administrators can also use **Inventory adjustment** to correct a physical count. Choose whether the correction increases or decreases on-hand, enter the positive number of units, and explain the count or correction in the reason. The database stores the resulting signed quantity delta. A decrease cannot take stock below zero, zero-unit changes are rejected, and adjustments remain in the append-only movement/audit history. Clerks do not have this permission. Inactive products cannot receive new movements after migration 005 is applied. Each submission uses a request UUID so an identical retry does not create a duplicate movement.
 
 These are inventory quantity records only. They do not process payments, record a POS sale, or create accounting entries. New stock entries carry the signed-in user's ID; old seed movements have no user and display as legacy entries.
 
@@ -105,7 +107,7 @@ flowchart TD
     K --> L[Return movement ID]
 ```
 
-The database workflow and rollback-only transaction check have been exercised. The sample data includes eight movements across both locations (four receiving entries and four sale deductions); filtering activity to Demo Store returns four rows. Application-created movements include the signed-in actor. A CI-only competing-deduction check is configured for a disposable database; its GitHub run has not yet been verified.
+The expanded local check passed for returns, both adjustment directions, idempotent retries, zero and oversell rejection, and audit rows; it rolled back its test transaction. The sample seed data starts with eight movements across both locations (four receiving entries and four sale deductions); filtering activity to Demo Store initially returns four rows. Application-created movements include the signed-in actor. The expanded auth verifier also passed for clerk return access and manager-only adjustment visibility. GitHub Actions run #10 passed the earlier hosted checks; a fresh CI run is needed for these additions. [View run #10](https://github.com/sysinfo7/Inventory_System/actions/runs/38481389156).
 
 ## Screenshots still needed
 

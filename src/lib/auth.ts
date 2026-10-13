@@ -10,12 +10,12 @@ const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
 
 export type Role = 'admin' | 'manager' | 'clerk' | 'viewer';
-export type Permission = 'catalog:read' | 'catalog:write' | 'stock:read' | 'stock:receive' | 'stock:sale' | 'activity:read' | 'users:manage';
+export type Permission = 'catalog:read' | 'catalog:write' | 'stock:read' | 'stock:receive' | 'stock:sale' | 'stock:adjust' | 'activity:read' | 'users:manage';
 export type AuthUser = { id: string; email: string; displayName: string; role: Role };
 
 const grants: Record<Role, readonly Permission[]> = {
-  admin: ['catalog:read', 'catalog:write', 'stock:read', 'stock:receive', 'stock:sale', 'activity:read', 'users:manage'],
-  manager: ['catalog:read', 'catalog:write', 'stock:read', 'stock:receive', 'stock:sale', 'activity:read'],
+  admin: ['catalog:read', 'catalog:write', 'stock:read', 'stock:receive', 'stock:sale', 'stock:adjust', 'activity:read', 'users:manage'],
+  manager: ['catalog:read', 'catalog:write', 'stock:read', 'stock:receive', 'stock:sale', 'stock:adjust', 'activity:read'],
   clerk: ['catalog:read', 'stock:read', 'stock:receive', 'stock:sale', 'activity:read'],
   viewer: ['catalog:read', 'stock:read', 'activity:read'],
 };

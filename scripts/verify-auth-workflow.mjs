@@ -64,6 +64,22 @@ try {
   assert(forbiddenRedirect(editHtml), `Read-only user was not blocked from the product editor (HTTP ${editPage.status}): ${editHtml.slice(-1800)}`);
   assert(forbiddenRedirect(userHtml), `Read-only user was not blocked from user management (HTTP ${userAdmin.status}): ${userHtml.slice(-1800)}`);
 
+  // Change this temporary account's role in the disposable/local verification DB.
+  // currentUser resolves roles from PostgreSQL on each request, so the same
+  // session verifies that clerk and manager controls follow server-side grants.
+  await pool.query("UPDATE app_users SET role = 'clerk' WHERE id = $1::uuid", [userId]);
+  const clerkStock = await page('/stock');
+  const clerkStockHtml = await clerkStock.text();
+  assert(clerkStock.status === 200 && clerkStockHtml.includes('Record customer return'), 'Clerk could not record customer returns.');
+  assert(!clerkStockHtml.includes('Inventory adjustment') && !clerkStockHtml.includes('Record adjustment'), 'Clerk was shown manager-only adjustment controls.');
+
+  await pool.query("UPDATE app_users SET role = 'manager' WHERE id = $1::uuid", [userId]);
+  const managerStock = await page('/stock');
+  const managerStockHtml = await managerStock.text();
+  assert(managerStock.status === 200 && managerStockHtml.includes('Inventory adjustment'), 'Manager could not access count adjustments.');
+  assert(permissionHtml.includes('Record inventory adjustments'), 'The permission matrix omitted the adjustment capability.');
+  await pool.query("UPDATE app_users SET role = 'viewer' WHERE id = $1::uuid", [userId]);
+
   const logout = await fetch(new URL('/logout', appUrl), {
     method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie },
   });
@@ -90,7 +106,7 @@ try {
     throw error;
   } finally { client.release(); }
 
-  console.log('Authentication verified: sign-in, protected cookie, viewer reads, editor/admin denial, session revocation, and actor audit attribution passed.');
+  console.log('Authentication verified: sign-in, protected cookie, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, session revocation, and actor audit attribution passed.');
 } finally {
   if (cookie) {
     try { await fetch(new URL('/logout', appUrl), { method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie } }); } catch { /* The session row is also removed directly below. */ }

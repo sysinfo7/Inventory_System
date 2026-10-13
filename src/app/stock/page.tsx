@@ -51,11 +51,13 @@ async function StockContent({ searchParams }: StockPageProps) {
   const lowCount = stockItems.filter((item) => BigInt(item.quantity) <= BigInt(item.reorderPoint)).length;
   const receiveRequestId = randomUUID();
   const saleRequestId = randomUUID();
+  const returnRequestId = randomUUID();
+  const adjustmentRequestId = randomUUID();
 
   return (
     <main className="page-shell">
       <div className="page-heading">
-        <div><p className="eyebrow">Inventory / Stock</p><h1>Stock on hand</h1><p className="page-description">View current quantities and record receiving or manual sale deductions at a selected location.</p></div>
+        <div><p className="eyebrow">Inventory / Stock</p><h1>Stock on hand</h1><p className="page-description">View current quantities and record receipts, returns, sales, or approved inventory corrections at a selected location.</p></div>
         <Link className="button button-secondary" href={`/activity?location=${encodeURIComponent(location.id)}`}>View movement activity <span aria-hidden="true">→</span></Link>
       </div>
       <aside className="demo-notice" aria-label="Inventory information"><span className="notice-mark" aria-hidden="true">i</span><p><strong>Manual inventory demo.</strong> Quantity records only; no payment processing, point-of-sale integration, or accounting entries. Stock changes are attributed to your signed-in account.</p></aside>
@@ -83,9 +85,9 @@ async function StockContent({ searchParams }: StockPageProps) {
         )}
       </section>
 
-      {hasPermission(user.role, 'stock:receive') || hasPermission(user.role, 'stock:sale') ? <section className="stock-entry-section" aria-labelledby="stock-entry-heading">
+      {hasPermission(user.role, 'stock:receive') || hasPermission(user.role, 'stock:sale') || hasPermission(user.role, 'stock:adjust') ? <section className="stock-entry-section" aria-labelledby="stock-entry-heading">
         <div className="section-heading"><div><p className="eyebrow">RECORD A CHANGE</p><h2 id="stock-entry-heading">Keep the movement history current.</h2></div><p>Every completed change is recorded with its reason, type, and time.</p></div>
-        <StockForms locations={locations} products={products} selectedLocationId={location.id} receiveRequestId={receiveRequestId} saleRequestId={saleRequestId} canReceive={hasPermission(user.role, 'stock:receive')} canSell={hasPermission(user.role, 'stock:sale')} />
+        <StockForms locations={locations} products={products} selectedLocationId={location.id} receiveRequestId={receiveRequestId} saleRequestId={saleRequestId} returnRequestId={returnRequestId} adjustmentRequestId={adjustmentRequestId} canReceive={hasPermission(user.role, 'stock:receive')} canSell={hasPermission(user.role, 'stock:sale')} canAdjust={hasPermission(user.role, 'stock:adjust')} />
       </section> : <p className="catalog-footnote">Your account has read-only stock access.</p>}
       <p className="catalog-footnote">Reorder point is compared with the current on-hand quantity at this selected location. “Current on hand” does not include reservations or open orders.</p>
     </main>

@@ -46,11 +46,53 @@ try {
   );
   const saleId = String(saleResult.rows[0].id);
 
+  const returnResult = await client.query(
+    'SELECT record_stock_movement($1::bigint, $2::bigint, 2::bigint, $3::text, $4::text, NULL, $5::uuid, NULL) AS id',
+    [productId, locationId, 'return', 'Temporary verification customer return', randomUUID()],
+  );
+  const returnId = String(returnResult.rows[0].id);
+  const adjustmentDownResult = await client.query(
+    'SELECT record_stock_movement($1::bigint, $2::bigint, -1::bigint, $3::text, $4::text, NULL, $5::uuid, NULL) AS id',
+    [productId, locationId, 'adjustment', 'Temporary verification count correction', randomUUID()],
+  );
+  const adjustmentDownId = String(adjustmentDownResult.rows[0].id);
+  const adjustmentUpResult = await client.query(
+    'SELECT record_stock_movement($1::bigint, $2::bigint, 1::bigint, $3::text, $4::text, NULL, $5::uuid, NULL) AS id',
+    [productId, locationId, 'adjustment', 'Temporary verification count correction', randomUUID()],
+  );
+  const adjustmentUpId = String(adjustmentUpResult.rows[0].id);
+
+  await client.query('SAVEPOINT zero_adjustment_check');
+  let zeroAdjustmentRejected = false;
+  try {
+    await client.query(
+      'SELECT record_stock_movement($1::bigint, $2::bigint, 0::bigint, $3::text, $4::text, NULL, $5::uuid, NULL)',
+      [productId, locationId, 'adjustment', 'Temporary invalid zero correction', randomUUID()],
+    );
+  } catch (error) {
+    zeroAdjustmentRejected = error.code === 'P0001' && error.message === 'Quantity delta must not be zero';
+    await client.query('ROLLBACK TO SAVEPOINT zero_adjustment_check');
+  }
+  if (!zeroAdjustmentRejected) throw new Error('The stock function allowed a zero-quantity adjustment.');
+
+  await client.query('SAVEPOINT adjustment_oversell_check');
+  let adjustmentOversellRejected = false;
+  try {
+    await client.query(
+      'SELECT record_stock_movement($1::bigint, $2::bigint, -5::bigint, $3::text, $4::text, NULL, $5::uuid, NULL)',
+      [productId, locationId, 'adjustment', 'Temporary invalid count correction', randomUUID()],
+    );
+  } catch (error) {
+    adjustmentOversellRejected = error.code === 'P0001' && error.message === 'Insufficient stock';
+    await client.query('ROLLBACK TO SAVEPOINT adjustment_oversell_check');
+  }
+  if (!adjustmentOversellRejected) throw new Error('The stock function allowed an adjustment to make inventory negative.');
+
   await client.query('SAVEPOINT oversell_check');
   let oversellRejected = false;
   try {
     await client.query(
-      'SELECT record_stock_movement($1::bigint, $2::bigint, -4::bigint, $3::text, $4::text, NULL, $5::uuid, NULL)',
+      'SELECT record_stock_movement($1::bigint, $2::bigint, -5::bigint, $3::text, $4::text, NULL, $5::uuid, NULL)',
       [productId, locationId, 'sale', 'Temporary oversell verification', randomUUID()],
     );
   } catch (error) {
@@ -76,8 +118,8 @@ try {
     'SELECT quantity::text AS quantity FROM stock_balances WHERE product_id = $1::bigint AND location_id = $2::bigint',
     [productId, locationId],
   );
-  if (balanceResult.rows[0]?.quantity !== '2') {
-    throw new Error(`Expected a remaining quantity of 2 after the verification receipt and sale; got ${balanceResult.rows[0]?.quantity ?? 'no balance row'}.`);
+  if (balanceResult.rows[0]?.quantity !== '4') {
+    throw new Error(`Expected a remaining quantity of 4 after receiving, sale, return, and both adjustments; got ${balanceResult.rows[0]?.quantity ?? 'no balance row'}.`);
   }
 
   await client.query(
@@ -101,16 +143,16 @@ try {
     SELECT count(*)::integer AS event_count,
            bool_and(actor_id IS NULL) AS actors_unattributed
     FROM inventory_audit_log
-    WHERE entity_type = 'stock_movement' AND entity_id IN ($1::bigint, $2::bigint)
-  `, [receiveId, saleId]);
-  if (auditResult.rows[0].event_count !== 2 || !auditResult.rows[0].actors_unattributed) {
+    WHERE entity_type = 'stock_movement' AND entity_id = ANY($1::bigint[])
+  `, [[receiveId, saleId, returnId, adjustmentDownId, adjustmentUpId]]);
+  if (auditResult.rows[0].event_count !== 5 || !auditResult.rows[0].actors_unattributed) {
     throw new Error('The movement audit events or expected blank actor attribution were not present.');
   }
 
   // Always roll back: the check must not leave demo products, movements, or audit rows behind.
   await client.query('ROLLBACK');
   transactionStarted = false;
-  console.log('Stock workflow verified: receiving, sale deduction, idempotent retry, oversell rejection, and blank-actor audit events passed. Test data was rolled back.');
+  console.log('Stock workflow verified: receiving, sale deduction, return, positive and negative adjustments, idempotent retry, oversell/zero rejection, and audit events passed. Test data was rolled back.');
 } finally {
   if (transactionStarted) await client.query('ROLLBACK');
   await client.end();

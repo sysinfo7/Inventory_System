@@ -25,9 +25,9 @@ Every inventory page and Server Action checks a permission using the database-re
 
 | Role | Catalog | Stock | Activity | User administration |
 | --- | --- | --- | --- | --- |
-| Administrator | View and edit | View, receive, deduct sale | View | Reserved for account management |
-| Manager | View and edit | View, receive, deduct sale | View | No |
-| Clerk | View | View, receive, deduct sale | View | No |
+| Administrator | View and edit | View, receive, return, deduct sale, adjust count | View | Reserved for account management |
+| Manager | View and edit | View, receive, return, deduct sale, adjust count | View | No |
+| Clerk | View | View, receive, return, deduct sale | View | No |
 | Read-only | View | View | View | No |
 
 Demo-only accounts are created only after explicit local opt-in using `npm run auth:seed-test-users`; generated one-time passwords print in the local terminal and only password hashes are stored. The runtime app login has broad app-operation DB grants, so application roles are enforced in trusted server code. Direct use of the DB credential bypasses app roles. The current database setup is local-only. Account lockout/rate limits, password recovery, invitation flow, session revocation after role change, and self-service password changes remain to be built.
@@ -52,4 +52,4 @@ Before public deployment, add rate limiting and account lockout, review password
 
 ## Evidence status
 
-Migrations through 010, the local PostgreSQL connection, application-role provisioning, `npm run db:verify-stock`, and `npm run auth:verify` have been verified. GitHub Actions success, runtime concurrency checks, real administrator setup, and production security review remain outstanding.
+Migrations through 010, the local PostgreSQL connection, application-role provisioning, expanded `npm run db:verify-stock`, and `npm run auth:verify` have been verified. The expanded checks passed locally for returns, count adjustments, clerk/manager permission boundaries, and audit attribution. GitHub Actions run #10 passed the earlier hosted concurrency and authentication checks, along with the production build ([run details](https://github.com/sysinfo7/Inventory_System/actions/runs/38481389156)); a fresh run is needed for the latest changes. The owner has confirmed the real administrator can sign in. A backup/restore rehearsal and production security review remain outstanding.

@@ -4,9 +4,9 @@ A portfolio project for a small retail business to manage products and record st
 
 ## Current status
 
-The repository includes a product catalog, stock-on-hand and movement workflows, sign-in, role-based permissions, and an administrator user-management screen. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
+The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in, role-based permissions, and administrator user management. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys. These schema migrations and the rollback-only `npm run db:verify-stock` check passed locally; see [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys. Earlier migrations and the expanded rollback-only stock/auth checks passed locally, including returns, count corrections, and role visibility. The latest GitHub run predates those additions, so a new CI run is still needed. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -29,7 +29,7 @@ The app requires sign-in. After `npm run db:migrate` and `npm run db:provision-a
 
 The local helper creates a separate 256-bit app password in `.env` without displaying it, and refuses to replace an existing app URL. The web app binds to `127.0.0.1`; do not change it to a public interface. PostgreSQL is published to the local machine at port 5433. Never commit or share `.env` or database backups.
 
-`db:verify-stock` exercises receiving, sale deduction, matching idempotent retry, conflicting request-token rejection, oversell rejection, inactive-product rejection, resulting balance, and blank-actor audit rows. It runs its writes in one transaction and rolls them back. It requires the latest migrations and a working `APP_DATABASE_URL`.
+`db:verify-stock` exercises receiving, sale deduction, customer returns, positive and negative adjustments, matching idempotent retry, conflicting request-token rejection, oversell/zero rejection, inactive-product rejection, resulting balance, and blank-actor audit rows. It runs its writes in one transaction and rolls them back. It requires the latest migrations and a working `APP_DATABASE_URL`.
 
 `db:verify-stock-concurrency` runs only in CI against its disposable PostgreSQL service. It submits two simultaneous four-unit sales against five units and verifies that one succeeds, the other is rejected, and the remaining balance is one. The uniquely identified test records stay in that disposable CI database.
 
@@ -58,7 +58,7 @@ npm run db:verify-stock
 npm run auth:verify
 ```
 
-GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. The current workflow has been expanded to exercise these paths; a green run on GitHub is still required as external verification.
+GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. These checks passed in [GitHub Actions run #10](https://github.com/sysinfo7/Inventory_System/actions/runs/38481389156) for commit `835c6b6`.
 
 ## Security boundary
 
@@ -66,6 +66,6 @@ The local PostgreSQL port and Next.js development server bind to loopback. The a
 
 ## Planned first features
 
-1. Returns, adjustments, and their business rules/user flows.
-2. Password recovery, account rate limiting, and session revocation when roles change.
-3. CI run verification before deployment.
+1. Password recovery and account rate limiting; role changes already take effect on each next request, while full session-revocation policy remains future work.
+2. Backup/restore rehearsal and a documented production security review.
+3. Purchase orders, suppliers, and deployment work after the local portfolio scope is complete.

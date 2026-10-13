@@ -4,14 +4,15 @@ import { requireUser, type Permission, type Role, hasPermission } from '@/lib/au
 
 const roles: Array<{ id: Role; label: string; description: string }> = [
   { id: 'admin', label: 'Administrator', description: 'Full inventory access and user administration.' },
-  { id: 'manager', label: 'Manager', description: 'Manage products and stock, review activity.' },
-  { id: 'clerk', label: 'Clerk', description: 'View inventory and record receiving or sales deductions.' },
+  { id: 'manager', label: 'Manager', description: 'Manage products, stock, count adjustments, and activity.' },
+  { id: 'clerk', label: 'Clerk', description: 'View inventory and record receipts, customer returns, or sales deductions.' },
   { id: 'viewer', label: 'Read-only', description: 'Review products, stock, and activity without changes.' },
 ];
 const permissions: Array<{ id: Permission; label: string }> = [
   { id: 'catalog:read', label: 'View product catalog' }, { id: 'catalog:write', label: 'Add and edit products' },
-  { id: 'stock:read', label: 'View stock by location' }, { id: 'stock:receive', label: 'Receive stock' },
+  { id: 'stock:read', label: 'View stock by location' }, { id: 'stock:receive', label: 'Receive stock and customer returns' },
   { id: 'stock:sale', label: 'Record sale deductions' }, { id: 'activity:read', label: 'View movement history' },
+  { id: 'stock:adjust', label: 'Record inventory adjustments' },
   { id: 'users:manage', label: 'Create and deactivate user accounts' },
 ];
 
