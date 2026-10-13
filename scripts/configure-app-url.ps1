@@ -24,7 +24,12 @@ if ($appLineIndex -ge 0) {
 
 # Generate a distinct 256-bit URL-safe password without printing it to the terminal.
 $bytes = [byte[]]::new(32)
-[Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+$random = [Security.Cryptography.RandomNumberGenerator]::Create()
+try {
+    $random.GetBytes($bytes)
+} finally {
+    $random.Dispose()
+}
 $password = [Convert]::ToHexString($bytes).ToLowerInvariant()
 $appUrlLine = "APP_DATABASE_URL=postgresql://inventory_runtime:$password@localhost:5433/inventory"
 
