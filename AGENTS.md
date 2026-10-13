@@ -11,3 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Project team
 
 Read `docs/agents/TEAM.md` before delegated work. It defines the named roles, shared constraints, task handoffs, and cost policy. The lead coordinates workers directly. Worker names are roles, not separate GitHub identities. Do not create sidebar chats or additional agents unless the lead assigns that work within the user's authorization.
+
+## Documentation maintenance
+
+When changing database migrations, keys, fields, relationships, constraints, indexes, functions, triggers, role grants, or implementation status, update `docs/EMPLOYER_DATABASE_DESIGN.md` in the same change. Keep its ER diagram and descriptions aligned with the SQL source and state clearly what is implemented in the schema versus available in the application. Link the design document from relevant project documentation.

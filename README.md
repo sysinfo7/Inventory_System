@@ -24,6 +24,7 @@ Open http://localhost:3000. PostgreSQL is published to the local machine at port
 
 ## Project documentation
 
+- [Employer database design](docs/EMPLOYER_DATABASE_DESIGN.md): ER diagram, fields, keys, normalization, relationships, transaction and audit flow.
 - [Architecture](docs/ARCHITECTURE.md): data model, stock transaction flow, and implementation boundaries.
 - [Database operations](docs/DATABASE.md): migrations, database commands, backup, restore, and clean reset.
 - [Security](docs/SECURITY.md): implemented safeguards, limitations, and work required before deployment.

@@ -2,6 +2,8 @@
 
 These instructions cover the local PostgreSQL 17 development database. The database has schema support for catalog and stock-control operations, but the current web page does not yet provide those workflows. Do not use these development steps as production deployment instructions.
 
+For an employer-facing field/key diagram and explanation of the relational model, see [EMPLOYER_DATABASE_DESIGN.md](EMPLOYER_DATABASE_DESIGN.md).
+
 ## Requirements and configuration
 
 Install Node.js 24, npm, and Docker Desktop with its Linux engine running. In the repository root, copy `.env.example` to `.env` and replace both password placeholders with the same long random local-development value. `.env` is ignored by Git; never commit or share it. The Compose configuration publishes PostgreSQL at `localhost:5433` and stores data in the `inventory_data` volume.

@@ -10,6 +10,8 @@ The stack is TypeScript, React, Next.js, Tailwind CSS, PostgreSQL, and the `pg` 
 
 The schema separates catalog entities, movement history, current stock, and audit events. Products and locations each have their own identities; movements reference both. `inventory_stock` is a cached balance projection keyed by product and location. The `stock_balances` view reads this projection. New stock changes must go through `record_stock_movement`, which locks the corresponding balance row, checks that the result remains nonnegative, updates the projection, and inserts the movement within the same database statement transaction.
 
+See [EMPLOYER_DATABASE_DESIGN.md](EMPLOYER_DATABASE_DESIGN.md) for the full field/key diagram, normalization rationale, and maintained portfolio explanation of the relationships.
+
 ```mermaid
 erDiagram
     CATEGORIES o|--o{ PRODUCTS : classifies
