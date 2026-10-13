@@ -34,7 +34,7 @@ npm run auth:bootstrap
 npm run dev
 ```
 
-`db:verify-stock` checks receipt, sale, idempotent retry, conflicting request token, oversell rejection, inactive product rejection, resulting balance, and an audit row in a transaction that is rolled back. Run `npm run auth:bootstrap` once to create a personal admin account; it asks for a private 14-character-or-longer password and doesn't echo it. The app and PostgreSQL bind to loopback for local use. Open [http://127.0.0.1:3000](http://127.0.0.1:3000). In a second PowerShell window from the project folder, `npm run auth:verify` creates a temporary read-only user and checks sign-in, permissions, logout, and actor audit attribution; it removes the test account when done. See [DATABASE.md](DATABASE.md) for migration, role, backup, restore, and destructive reset details.
+`db:verify-stock` checks receipt, sale, idempotent retry, conflicting request token, oversell rejection, inactive product rejection, resulting balance, and an audit row in a transaction that is rolled back. Run `npm run auth:bootstrap` once to create a personal admin account; it asks for a private 14-character-or-longer password and doesn't echo it. The app and PostgreSQL bind to loopback for local use. Open [http://127.0.0.1:3000](http://127.0.0.1:3000). In a second PowerShell window from the project folder, `npm run auth:verify` creates a temporary read-only user and checks sign-in, permissions, logout, and actor audit attribution; it removes the test account with the local database administrator connection. After upgrading from an earlier verifier that could leave test rows, run `npm run auth:cleanup-checks` once. See [DATABASE.md](DATABASE.md) for migration, role, backup, restore, and destructive reset details.
 
 Stop the web server with `Ctrl+C`. To stop PostgreSQL while keeping local data, run:
 
@@ -44,7 +44,7 @@ docker compose stop
 
 ## Product catalog walkthrough
 
-1. Open the home page and select **Explore product catalog**, or choose **Products** in the navigation.
+1. Open the home page and select **Open product catalog**, or choose **Products** in the navigation.
 2. Search by product name or SKU and choose Active products, Inactive products, or All statuses.
 3. Select **Add product** and enter a unique SKU, product name, optional category and sale price, reorder point, and status.
 4. To edit or deactivate, select **Edit** on a product. Set its status to Inactive to keep it out of the active list while preserving the product and its history.

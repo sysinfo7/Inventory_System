@@ -3,8 +3,11 @@ import { randomBytes, randomUUID, scrypt as scryptCallback } from 'node:crypto';
 import { promisify } from 'node:util';
 
 if (!process.env.APP_DATABASE_URL) throw new Error('APP_DATABASE_URL is required.');
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required to remove the temporary verification account.');
 const databaseUrl = new URL(process.env.APP_DATABASE_URL);
 if (!['localhost', '127.0.0.1', '::1'].includes(databaseUrl.hostname)) throw new Error('Auth verification only accepts a local database host.');
+const cleanupUrl = new URL(process.env.DATABASE_URL);
+if (!['localhost', '127.0.0.1', '::1'].includes(cleanupUrl.hostname)) throw new Error('Auth verification cleanup only accepts a local database host.');
 const appUrl = process.env.AUTH_TEST_BASE_URL ?? 'http://127.0.0.1:3000';
 if (!['http:', 'https:'].includes(new URL(appUrl).protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(appUrl).hostname)) {
   throw new Error('Auth verification only accepts a localhost app URL.');
@@ -92,6 +95,12 @@ try {
   if (cookie) {
     try { await fetch(new URL('/logout', appUrl), { method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie } }); } catch { /* The session row is also removed directly below. */ }
   }
-  await pool.query('DELETE FROM app_users WHERE id = $1::uuid', [userId]).catch(() => {});
-  await pool.end();
+  const cleanup = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  try {
+    await cleanup.connect();
+    await cleanup.query('DELETE FROM app_users WHERE id = $1::uuid', [userId]);
+  } finally {
+    await cleanup.end().catch(() => {});
+    await pool.end();
+  }
 }

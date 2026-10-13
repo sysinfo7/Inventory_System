@@ -146,4 +146,4 @@ npm run db:check
 
 ## Verification status
 
-Migrations through 010 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, `npm run db:verify-stock`, and the temporary-account `npm run auth:verify` passed. Real administrator setup, GitHub Actions success, production build (blocked by Windows junction permissions), concurrent deduction behavior, backup, restore, and clean reset remain unverified.
+Migrations through 010 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, `npm run db:verify-stock`, and the temporary-account `npm run auth:verify` passed. The local administrator and optional role test accounts are set up. GitHub Actions success, production build (blocked by Windows junction permissions), concurrent deduction behavior, backup, restore, and clean reset remain unverified. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.

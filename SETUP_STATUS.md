@@ -16,8 +16,10 @@
 - `/stock`: selected-location balances for active products, reorder attention for quantities at or below each product's reorder point, receiving form, and manual sale-deduction form.
 - `/activity`: location, movement-type, and name/SKU/reason filters; newest-first signed movement rows, capped at 200 results.
 - The overview page stays static and no longer repeats the per-request session database lookup already performed by the navigation header. This keeps the main page from triggering Next.js's uncached-data-during-navigation insight.
+- The permissions matrix, user management, and permission-denied pages isolate request-specific account checks behind route-level Suspense boundaries and start request-time data work after `connection()`.
 - Stock writes call `record_stock_movement` through `APP_DATABASE_URL`, passing the verified signed-in user's UUID as actor. The function validates active product status, direction, reason, request-token idempotency, and nonnegative balances transactionally.
 - Administrator account management can create, activate, and deactivate accounts; users cannot deactivate themselves or the last active administrator. Manager, Clerk, and Read-only test accounts are opt-in and use generated passwords.
+- The authentication verifier now removes its temporary user with the local database administrator connection. Run `npm run auth:cleanup-checks` once to remove temporary users left by earlier verifier versions.
 - These are quantity records; they do not process payments or create accounting entries. Account lockout and recovery remain future security work.
 
 ## Verification evidence
@@ -25,10 +27,12 @@
 - `npm run typecheck`, `npm run lint`, `git diff --check`, `npm run db:migrate` (initial and repeat), `npm run db:check`, and `npm run db:provision-app` passed after auth implementation.
 - `npm run auth:verify` passed against the running localhost app: valid sign-in and HttpOnly/SameSite cookie, viewer reads, editor/user-admin denial, logout revocation, and actor ID in catalog audit. Its temporary test account and audit write were cleaned up/rolled back.
 - The browser reported an uncached-data navigation insight from `currentUser()` on the overview page. Removing that duplicate database-backed session lookup cleared the browser insight on the live overview page; typecheck and lint passed after the change.
+- The same insight was visible on `/permissions` before request-specific content was placed behind its own Suspense boundary; the live page rendered without the insight afterward. `/users` also rendered normally after its boundary was added. GitHub `main` was confirmed at `c847a9e` after the owner pushed.
+- The local Users page revealed temporary accounts from earlier authentication checks; these are isolated by the `auth-check-…@inventory-demo.invalid` naming rule. A local-only cleanup command is available. Its execution from this tool environment was blocked by loopback database access, so the owner must run the command in the project PowerShell terminal.
 - The running app displayed eight movements across both locations; the Demo Store activity filter returned four rows. Atlas ran `npm run db:verify-stock`; receipt, sale, retry, oversell, and audit checks passed, and test rows were rolled back.
 - A production build was attempted but Turbopack could not create a Windows junction in `.next` (access denied). No concurrent deduction check or screenshot has been completed.
 - `npm run db:verify-stock` passed after migration 009 and confirms the movement semantics; its test writes run in a transaction that rolls back. It checks blank actor for its synthetic database-level call; application actions now pass the authenticated user UUID.
-- GitHub Actions success has not been verified. The real administrator account has not yet been created; the bootstrap command requires the owner to choose their private password.
+- GitHub Actions success has not been verified. The local administrator account has been created; the bootstrap script requires each operator to choose their own private password.
 
 ## Owner's next local steps
 

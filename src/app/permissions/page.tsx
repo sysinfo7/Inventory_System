@@ -1,3 +1,5 @@
+import { connection } from 'next/server';
+import { Suspense } from 'react';
 import { requireUser, type Permission, type Role, hasPermission } from '@/lib/auth';
 
 const roles: Array<{ id: Role; label: string; description: string }> = [
@@ -13,7 +15,12 @@ const permissions: Array<{ id: Permission; label: string }> = [
   { id: 'users:manage', label: 'Create and deactivate user accounts' },
 ];
 
-export default async function PermissionsPage() {
+export default function PermissionsPage() {
+  return <Suspense fallback={<main className="page-shell"><section className="loading-panel" aria-busy="true"><p>Loading permissions…</p></section></main>}><PermissionsContent /></Suspense>;
+}
+
+async function PermissionsContent() {
+  await connection();
   const user = await requireUser();
   return <main className="page-shell">
     <div className="page-heading"><div><p className="eyebrow">ADMINISTRATION / ACCESS</p><h1>Roles and permissions</h1><p className="page-description">Compare the access levels available in this retail inventory demo.</p></div></div>

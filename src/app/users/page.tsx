@@ -1,3 +1,5 @@
+import { connection } from 'next/server';
+import { Suspense } from 'react';
 import { requirePermission, type Role } from '@/lib/auth';
 import { getDbPool } from '@/lib/db';
 import { createUserAction, setUserActiveAction } from './actions';
@@ -10,7 +12,12 @@ const errors: Record<string, string> = {
   lastadmin: 'At least one active administrator account must remain.', missing: 'That account no longer exists.',
 };
 
-export default async function UsersPage({ searchParams }: Props) {
+export default function UsersPage(props: Props) {
+  return <Suspense fallback={<main className="page-shell"><section className="loading-panel" aria-busy="true"><p>Loading user accounts…</p></section></main>}><UsersContent searchParams={props.searchParams} /></Suspense>;
+}
+
+async function UsersContent({ searchParams }: Props) {
+  await connection();
   await requirePermission('users:manage');
   const [users, params] = await Promise.all([
     getDbPool().query('SELECT id, email, display_name, role, active, created_at FROM app_users ORDER BY lower(display_name), id'),
