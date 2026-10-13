@@ -62,7 +62,7 @@ Migration 002 adds categories with case-insensitive trimmed-name uniqueness, opt
 
 ## Stock write path
 
-The SQL stock function and its application forms/actions are implemented. The stock action validates positive whole-unit quantities, IDs, request UUIDs, and reason text, then calls `record_stock_movement` through `APP_DATABASE_URL` with `actor_id = NULL`. The function accepts an optional request UUID; a matching retry returns the original movement ID and reusing that UUID for different details raises an error. The product row is checked as active under `FOR SHARE`; then the balance row is locked, a negative result is rejected, and the balance update, movement insert, and audit trigger complete atomically. The `/stock` and `/activity` route/action paths return an unavailable state outside `NODE_ENV=development`. The catalog actions have the same local-development boundary.
+The SQL stock function and its application forms/actions are implemented. The stock action validates positive whole-unit quantities, IDs, request UUIDs, and reason text, then calls `record_stock_movement` through `APP_DATABASE_URL` with the user ID resolved from the verified server session. The function accepts an optional request UUID; a matching retry returns the original movement ID and reusing that UUID for different details raises an error. The product row is checked as active under `FOR SHARE`; then the balance row is locked, a negative result is rejected, and the balance update, movement insert, and audit trigger complete atomically. The application is configured for local development; production deployment controls have not been implemented or reviewed.
 
 ```mermaid
 flowchart TD
@@ -122,7 +122,7 @@ The security-definer functions run with `inventory_function_owner` privileges an
 
 ## Inventory audit trail and accounting boundary
 
-The movement and audit tables can support an inventory history of quantity changes. They do not implement double-entry bookkeeping, inventory valuation policy, period closing, reconciliation, tax calculations, payment handling, or regulatory compliance. Do not present this project as a financial accounting or compliance system.
+GitHub Actions now runs a CI-only competing-deduction check against a disposable database. It verifies that two simultaneous four-unit sales cannot reduce a five-unit balance below zero. This check has been added to the workflow but still needs a passing GitHub run. The movement and audit tables can support an inventory history of quantity changes. They do not implement double-entry bookkeeping, inventory valuation policy, period closing, reconciliation, tax calculations, payment handling, or regulatory compliance. Do not present this project as a financial accounting or compliance system.
 
 ## Screenshot evidence
 

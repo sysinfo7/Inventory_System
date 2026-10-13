@@ -105,7 +105,7 @@ flowchart TD
     K --> L[Return movement ID]
 ```
 
-The database workflow and rollback-only transaction check have been exercised. The sample data includes eight movements across both locations (four receiving entries and four sale deductions); filtering activity to Demo Store returns four rows. No concurrent deductions were tested at runtime. The blank actor cannot identify who performed the action.
+The database workflow and rollback-only transaction check have been exercised. The sample data includes eight movements across both locations (four receiving entries and four sale deductions); filtering activity to Demo Store returns four rows. Application-created movements include the signed-in actor. A CI-only competing-deduction check is configured for a disposable database; its GitHub run has not yet been verified.
 
 ## Screenshots still needed
 

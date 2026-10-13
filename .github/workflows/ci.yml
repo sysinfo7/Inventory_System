@@ -18,6 +18,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 12
     env:
       DATABASE_URL: postgresql://inventory:ci-only-password@localhost:5433/inventory
+      APP_DATABASE_URL: postgresql://inventory_runtime:ci-only-runtime-password-32-characters-long@localhost:5433/inventory
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,3 +31,22 @@ jobs:
       - run: npm run build
       - run: npm run db:migrate
       - run: npm run db:check
+      - run: npm run db:provision-app
+      - run: npm run db:verify-stock
+      - run: npm run db:verify-stock-concurrency
+      - name: Start the built application
+        run: nohup npm run start > next-server.log 2>&1 &
+      - name: Wait for the application
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat next-server.log
+          exit 1
+      - name: Verify authentication and permissions
+        env:
+          AUTH_TEST_BASE_URL: http://127.0.0.1:3000
+        run: npm run auth:verify

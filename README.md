@@ -31,6 +31,8 @@ The local helper creates a separate 256-bit app password in `.env` without displ
 
 `db:verify-stock` exercises receiving, sale deduction, matching idempotent retry, conflicting request-token rejection, oversell rejection, inactive-product rejection, resulting balance, and blank-actor audit rows. It runs its writes in one transaction and rolls them back. It requires the latest migrations and a working `APP_DATABASE_URL`.
 
+`db:verify-stock-concurrency` runs only in CI against its disposable PostgreSQL service. It submits two simultaneous four-unit sales against five units and verifies that one succeeds, the other is rejected, and the remaining balance is one. The uniquely identified test records stay in that disposable CI database.
+
 ## Project documentation
 
 - [Employer database design](docs/EMPLOYER_DATABASE_DESIGN.md): ER diagram, fields, keys, normalization, relationships, transaction and audit flow.
@@ -56,7 +58,7 @@ npm run db:verify-stock
 npm run auth:verify
 ```
 
-GitHub Actions is configured to run code checks and migration commands. CI success has not yet been verified for the current migrations. Local typecheck, lint, owner-reported stock workflow verification, local database connection, and two-location activity filtering have been checked. Production build and concurrent deduction behavior remain unverified.
+GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. The current workflow has been expanded to exercise these paths; a green run on GitHub is still required as external verification.
 
 ## Security boundary
 
@@ -66,4 +68,4 @@ The local PostgreSQL port and Next.js development server bind to loopback. The a
 
 1. Returns, adjustments, and their business rules/user flows.
 2. Password recovery, account rate limiting, and session revocation when roles change.
-3. Integration/runtime concurrency coverage and CI verification before deployment.
+3. CI run verification before deployment.
