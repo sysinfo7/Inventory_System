@@ -4,7 +4,7 @@
 
 Build a retail inventory portfolio project for potential employers, demonstrating working software and honest evidence of AI collaboration. Repository: https://github.com/sysinfo7/Inventory_System. Stack: Next.js 16.4 App Router, React, TypeScript, Tailwind, PostgreSQL 17, and pg. Read AGENTS.md, docs/REQUIREMENTS.md, package.json, relevant source, and installed Next.js documentation before implementation.
 
-Current baseline: starter page, original products/locations/movements schema, additive 002 database migration, Docker Compose, database scripts, and CI definition. The owner supplied initial PostgreSQL setup output and a successful GitHub push. Migration 002 remains unapplied in the owner database. Inventory application workflows and authentication are not implemented. GitHub CI success has not been verified. The agent's restricted environment has previously blocked Docker pipe access and Git authentication. Never describe those checks as independently passed.
+Current baseline: local product catalog UI and database migrations 001-003, Docker Compose, database scripts, and CI definition. The owner reported migration 002 applied; migration 003 and app-role provisioning remain owner-side steps. Stock workflows and authentication are not implemented. GitHub CI success has not been verified. The agent's restricted environment has previously blocked Docker pipe access and Git authentication. Never describe those checks as independently passed.
 
 ## Cost and lifecycle
 

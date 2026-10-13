@@ -5,9 +5,9 @@
 
 ## Purpose
 
-This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, and audit events fit together. The SQL source of truth is in [`db/001_initial.sql`](../db/001_initial.sql) and [`db/002_inventory_controls.sql`](../db/002_inventory_controls.sql); operational commands are in [`DATABASE.md`](DATABASE.md).
+This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, and audit events fit together. The SQL source of truth is in [`db/001_initial.sql`](../db/001_initial.sql), [`db/002_inventory_controls.sql`](../db/002_inventory_controls.sql), and [`db/003_product_catalog_writes.sql`](../db/003_product_catalog_writes.sql); operational commands are in [`DATABASE.md`](DATABASE.md).
 
-The schema is designed to support those workflows. The current web application is still a project landing page: it does not yet provide catalog or stock-management screens, authenticate users, or call the database stock-write function. Migration 002 must be applied to the local database before its additions exist there.
+The current web application includes a local-development product catalog for search, create, edit, and deactivate. Stock receiving and issue screens remain planned; the app does not yet authenticate users or call the database stock-write function. Migration 003 adds a controlled catalog-write function and restricted function-owner role; it must be applied and the limited runtime login provisioned before catalog changes can be saved locally.
 
 ## Entity relationship diagram
 
@@ -83,6 +83,7 @@ erDiagram
 | `inventory_stock` | Current cached quantity for one product at one location. | Composite primary key `(product_id, location_id)`; both columns are foreign keys; quantity cannot be negative. |
 | `stock_movements` | Append-only record of a quantity change, including reason, type, optional request/actor IDs, and optional event unit price. | Identity primary key; required product and location foreign keys; nonzero signed quantity; request ID is unique when supplied. |
 | `inventory_audit_log` | Before/after product records and stock-movement audit events. | Identity primary key; audit rows reject ordinary update/delete/truncate operations. Its polymorphic entity reference is not a foreign key. |
+| `save_product` | Controlled database function used by the catalog create/edit form. | Security-definer function with fixed search path; validates product fields; granted to `inventory_app`, not `PUBLIC`. Product triggers append audit changes. |
 | `stock_balances` | Read view exposing product, location, and quantity from `inventory_stock`. | A view, not a stored table or independent source of truth. |
 | `schema_migrations` | Migration version, SHA-256 checksum, and application time. | Migration version is the primary key; the runner rejects edits to a migration already recorded as applied. |
 
@@ -121,7 +122,7 @@ The function validates a nonzero delta, supported movement type, movement direct
 
 ## Security and audit boundaries
 
-The migration creates `inventory_app` as a `NOLOGIN` role. It grants reads on designated catalog/history objects and execution of the controlled movement function. A trusted operator would need to provision a login and membership. The function is defined with `SECURITY DEFINER` and a fixed `search_path`; application authentication and a server route that calls it have not been built.
+Migration 002 creates `inventory_app` as a `NOLOGIN` role with limited reads and stock-function execution; migration 003 adds product-function execution. Security-definer routines are owned by the separate `inventory_function_owner` `NOLOGIN` role with only the table and sequence privileges they need. Their fixed `search_path` is `pg_catalog, public, pg_temp`, with the temporary schema last. The product form calls `save_product` with parameterized values using `APP_DATABASE_URL`; `inventory_runtime` is provisioned as a separate login that inherits the group role. The route and write action are disabled outside local development. This is a useful local boundary, not a claim of production-grade security.
 
 Audit actor IDs are nullable and caller-controlled. They do not verify a human identity. Migration 002 records events after its triggers are installed and does not backfill earlier product or movement events. Movement and audit rows reject ordinary updates/deletes, with truncate guards for those history tables; database owners and administrators can change or bypass these controls. Product changes remain allowed and generate audit events when their triggers execute.
 
@@ -136,9 +137,9 @@ To apply or upgrade the local development database from PowerShell, run `scripts
 ## Current implementation status
 
 - Migration 001 defines the initial products, locations, movements, and aggregate balance view.
-- Migration 002 defines categories, normalized SKU uniqueness, cached balances, typed movement events, audit triggers, the controlled write function, and role grants.
-- The repository includes the SQL and repeatable migration runner; the owner previously confirmed the initial database setup. The agent could not independently connect to the owner's database to apply or verify migration 002.
-- The web app currently shows a project landing page. Catalog, stock-entry, authentication, and reporting screens remain future work.
+- Migration 002 defines categories, normalized SKU uniqueness, cached balances, typed movement events, audit triggers, the controlled stock function, and group-role grants.
+- Migration 003 defines the controlled catalog-write function and restricted function owner. The owner reported migration 002 applied; the agent could not independently connect to the owner's database to apply/verify migration 003 or provision the runtime login.
+- The web app includes a local catalog UI, but its database-backed behavior still requires migration 003 and app-role setup. Stock-entry, authentication, and reporting screens remain future work.
 - No sample production or customer information is included. Use fictional data in demos.
 
-Update this document whenever a migration changes a table, column, key, relationship, constraint, index, database function, trigger, role grant, or implementation status. Keep the diagram and relationship descriptions aligned with the SQL files, and clearly separate implemented behavior from planned application features.
+Update this document whenever a migration changes a table, column, key, relationship, constraint, index, database function, trigger, role grant, or implementation status. Keep the diagram and relationship descriptions aligned with the SQL files, and clearly separate implemented behavior from planned application features. It is also linked from the README and database operations guide.

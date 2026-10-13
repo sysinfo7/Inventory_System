@@ -1,6 +1,6 @@
 # Retail inventory UI/UX specification
 
-Status: design proposal for Atlas and Forge. This specification describes target workflows; it does not claim these workflows are implemented. Business and authorization assumptions needing approval are called out below.
+Status: design and review reference. The product catalog is implemented for local development; other workflows remain proposed and are not represented as working screens. Business and authorization assumptions needing approval are called out below.
 
 ## Product principles
 
@@ -112,14 +112,14 @@ These are in the requirements but not yet specified at business-rule level. Prop
 | Location | `locations.id`, `name` | Always show location on balances and stock writes. |
 | Stock event | `stock_movements.product_id`, `location_id`, `quantity_delta`, `reason`, `created_at` | Render delta with sign and reason. Current schema has no actor, movement category, external reference, or correction link. |
 | Balance | `stock_balances` view, sum of movement deltas grouped by product/location | Label as current on-hand. Empty sum may need to display as zero even though the view contains no row. |
-| Category and price | Required by planned catalog, absent from initial schema | UI must wait for agreed schema and rules; do not fabricate a price field's currency or accounting meaning. |
+| Category and price | `products.category_id`, `categories.name`, and `products.sale_price` are available after migration 002 | Category and nonnegative decimal amount are editable. Currency is not configured; do not imply a specific currency or accounting valuation. |
 | Availability | Not modeled beyond movement-derived balance | Do not imply reservations, in-flight orders, or sellable stock beyond the recorded on-hand count. |
 
 ## Decisions for Atlas before final implementation
 
 1. **Auth and permissions:** public demo, authenticated single user, or roles? Which roles may edit catalog, receive, issue, adjust, and view activity? Can actor identity be persisted?
 2. **Sales integration:** manual inventory issue or POS integration? If manual, is “Sale” a movement type and what sale fields (if any) are recorded? Explicitly decide that inventory movements are not payment/accounting records unless integrated.
-3. **Category and price:** category representation; currency; allowed decimal precision; whether zero/negative sale prices are allowed; whether sale price is only display metadata or used in any report.
+3. **Price presentation:** currency policy; whether sale price is only display metadata or used in any report. The catalog stores a nonnegative decimal amount with two fractional digits.
 4. **Reorder point scope:** global per product or separate per product/location?
 5. **Ledger policy:** immutable posted movements with compensating events? Which fields/IDs are retained for audit and correction?
 6. **Reasons and references:** allowed reason values, free-text policy, whether supplier documents, sale references, or return links are in scope.

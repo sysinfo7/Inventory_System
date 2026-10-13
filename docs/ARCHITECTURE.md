@@ -2,7 +2,7 @@
 
 ## Current state
 
-The repository combines a Next.js App Router project page with a PostgreSQL 17 development database. The page is a project-status landing page; catalog, stock-entry, and insight screens remain planned. Migration 002 defines schema support for those workflows, including a controlled stock-write function, but remains unapplied to the owner's local database. The UI and application server do not call it yet.
+The repository combines a Next.js App Router product catalog with a PostgreSQL 17 development database. The catalog supports server-rendered search/list, add, edit, and inactive status. Stock-entry and insight screens remain planned. Migration 002 defines the controlled stock-write function, but the current application does not call it.
 
 The stack is TypeScript, React, Next.js, Tailwind CSS, PostgreSQL, and the `pg` driver. `npm run db:migrate` applies numbered SQL files. The runner serializes migration runs with an advisory lock, stores a SHA-256 checksum for each applied version, and wraps each migration and ledger record in one transaction. An applied SQL file whose checksum changes is rejected; follow-up schema changes belong in a new numbered migration. There is no automatic rollback command.
 
@@ -58,11 +58,11 @@ erDiagram
 
 `inventory_audit_log` is an additional append-only table. Triggers record product inserts, updates, and deletes, with before/after JSON for product changes, and stock-movement inserts with the movement row. Actor and request UUIDs are nullable. Migration 002 does not backfill legacy product or movement rows into the audit log; it records events from the time those triggers are installed. `stock_movements` also has an append-only trigger; corrections are represented by a compensating movement. Triggers reject row updates/deletes and `TRUNCATE` on movement and audit history during normal operations. Product changes themselves remain allowed and are recorded. The audit records are inventory history, not a complete financial ledger.
 
-The migration adds categories with case-insensitive trimmed-name uniqueness, optional `sale_price`, an `active` flag, typed movements (`receiving`, `sale`, `return`, `adjustment`), optional unit price, actor/request identifiers, an occurred-at timestamp, and normalized case-insensitive SKU uniqueness. Existing negative movement balances cause migration 002 to fail rather than silently initializing an invalid cached balance. Legacy nonnegative movement sums initialize `inventory_stock`; legacy rows are not copied into `inventory_audit_log`.
+Migration 002 adds categories with case-insensitive trimmed-name uniqueness, optional `sale_price`, an `active` flag, typed movements (`receiving`, `sale`, `return`, `adjustment`), optional unit price, actor/request identifiers, an occurred-at timestamp, and normalized case-insensitive SKU uniqueness. Migration 003 adds the `save_product` security-definer function, available to the limited app role; it validates catalog inputs, writes product rows, and lets existing audit triggers record changes. Existing negative movement balances cause migration 002 to fail rather than silently initializing an invalid cached balance. Legacy nonnegative movement sums initialize `inventory_stock`; legacy rows are not copied into `inventory_audit_log`.
 
 ## Stock write path
 
-The SQL function is implemented, although the current application has no form, server action, or API that calls it. The caller supplies the actor UUID and optional request UUID; no authentication currently verifies the actor's identity. A repeated request UUID with matching movement details returns the existing movement ID. Reusing that UUID for different details raises an error.
+The SQL stock function is implemented, although the current application has no form, server action, or API that calls it. The caller supplies the actor UUID and optional request UUID; no authentication currently verifies the actor's identity. A repeated request UUID with matching movement details returns the existing movement ID. Reusing that UUID for different details raises an error. The catalog server action calls `save_product` through a separate `APP_DATABASE_URL` login, validates fields server-side, and revalidates the catalog after a confirmed write. It is available only when `NODE_ENV` is `development`.
 
 ```mermaid
 flowchart TD
@@ -109,9 +109,9 @@ record_stock_movement(product, location, delta, type, reason, actor?, request?, 
 
 ## Database role boundary and limits
 
-Migration 002 creates `inventory_app` as `NOLOGIN`, revokes public execution of `record_stock_movement`, revokes `CREATE` on the `public` schema from `PUBLIC`, and grants `inventory_app` only `SELECT` on the designated catalog/history/view/audit objects and `EXECUTE` on the stock function. It revokes `INSERT`, `UPDATE`, `DELETE`, and `TRUNCATE` on movement and cached-balance tables from `PUBLIC`. An operator must separately provision a login and appropriate membership; the migration does not configure a production login or password.
+Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migration 003 grants it execution of `save_product`, not direct catalog table writes. It transfers stock, product, and audit security-definer routines to `inventory_function_owner`, a no-login role with only the table/sequence grants needed by those routines. `scripts/provision-app-role.mjs` provisions `inventory_runtime` with a separate password and only the `inventory_app` membership. Migration credentials remain in `DATABASE_URL`; app reads/writes use `APP_DATABASE_URL`. The local provisioning script verifies that the runtime login has no elevated role attributes or unexpected memberships.
 
-The security-definer function runs with its owner privileges and fixes its `search_path` to `pg_catalog, public`. This is a useful boundary for the intended application role, not a claim of production-grade security. Database owners/superusers can change functions, triggers, or data. There is no authentication in the application, actor attribution is caller-controlled, and the UI does not yet use the role/function path.
+The security-definer functions run with `inventory_function_owner` privileges and fix their `search_path` to `pg_catalog, public, pg_temp`, with the temporary schema last. This is a useful boundary for the intended local application role, not a claim of production-grade security. Database owners/superusers can change functions, triggers, or data. There is no authentication in the application, actor attribution is intentionally blank for catalog writes, and product/stock workflows must not be exposed beyond local development.
 
 ## Inventory audit trail and accounting boundary
 
@@ -119,12 +119,13 @@ The movement and audit tables can support an inventory history of quantity chang
 
 ## Screenshot evidence
 
-Screenshots are pending. The current browser inventory exposed no open browser or app, so no real application capture was available. Capture these exact views from a running app when a browser is available:
+Screenshots are pending. The current browser preview could not reach the running local app, so no real application capture was available. Capture these exact views from a running app when a browser is available:
 
 1. `docs/screenshots/home-desktop.png` — current project-status landing page at desktop width.
 2. `docs/screenshots/home-mobile.png` — current landing page at a narrow mobile viewport.
-3. `docs/screenshots/catalog.png` — catalog UI after it is implemented.
-4. `docs/screenshots/stock-movement.png` — real receive/issue UI and its verified result after it is implemented.
-5. `docs/screenshots/stock-insights.png` — location balances/low-stock UI after it is implemented.
+3. `docs/screenshots/catalog.png` — active catalog list with fictional products.
+4. `docs/screenshots/product-form.png` — add/edit form and clear validation state.
+5. `docs/screenshots/stock-movement.png` — real receive/issue UI and its verified result after it is implemented.
+6. `docs/screenshots/stock-insights.png` — location balances/low-stock UI after it is implemented.
 
 Use fictional data. Do not use mockups as screenshots or expose credentials in a capture.

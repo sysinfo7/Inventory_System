@@ -1,16 +1,16 @@
 # Database setup and operations
 
-These instructions cover the local PostgreSQL 17 development database. The database has schema support for catalog and stock-control operations, but the current web page does not yet provide those workflows. Do not use these development steps as production deployment instructions.
+These instructions cover the local PostgreSQL 17 development database. The web app has a local product catalog; stock-control screens remain planned. Do not use these development steps as production deployment instructions.
 
 For an employer-facing field/key diagram and explanation of the relational model, see [EMPLOYER_DATABASE_DESIGN.md](EMPLOYER_DATABASE_DESIGN.md).
 
 ## Requirements and configuration
 
-Install Node.js 24, npm, and Docker Desktop with its Linux engine running. In the repository root, copy `.env.example` to `.env` and replace both password placeholders with the same long random local-development value. `.env` is ignored by Git; never commit or share it. The Compose configuration publishes PostgreSQL at `localhost:5433` and stores data in the `inventory_data` volume.
+Install Node.js 24, npm, and Docker Desktop with its Linux engine running. In the repository root, copy `.env.example` to `.env`, set the migration password for `DATABASE_URL` and Docker, and set a different long URL-safe password for `APP_DATABASE_URL`. `.env` is ignored by Git; never commit or share it. The Compose configuration publishes PostgreSQL at `localhost:5433` and stores data in the `inventory_data` volume.
 
 ```powershell
 Copy-Item .env.example .env
-# Edit .env locally; both password values must match.
+# Edit .env locally. DATABASE_URL and DB_PASSWORD match; APP_DATABASE_URL has a distinct password.
 npm ci
 ```
 
@@ -31,6 +31,7 @@ The current migration files are:
 | --- | --- |
 | `db/001_initial.sql` | Products, locations, movement history, the original movement-sum balance view, and an index. |
 | `db/002_inventory_controls.sql` | Categories and product catalog fields; cached stock balances; typed, append-only movements; audit log and triggers; serialized stock function; and database-role grants. |
+| `db/003_product_catalog_writes.sql` | A validated security-definer product save function, least-privilege function owner, and grant to the application role. |
 
 For an existing checkout/database, the local upgrade wrapper starts PostgreSQL if needed, applies any unapplied migrations, and checks the connection:
 
@@ -38,7 +39,18 @@ For an existing checkout/database, the local upgrade wrapper starts PostgreSQL i
 .\scripts\setup-database.ps1
 ```
 
-The owner must run this wrapper in a normal PowerShell terminal to upgrade their local database. This agent session cannot access the owner's PostgreSQL port `5433`, so migration 002 has not been applied or verified here. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
+This applies pending numbered migrations and checks the connection. The owner reported migration 002 applied successfully. Migration 003 is part of the catalog feature and must be applied before catalog writes work. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
+
+## Provision the application login
+
+`DATABASE_URL` is the local migration/operator credential. Do not use it in application code. The web app reads only `APP_DATABASE_URL`, whose `inventory_runtime` login inherits the limited privileges in `inventory_app`. Generate and save a separate 256-bit URL-safe password in `.env`, then provision the role:
+
+```powershell
+.\scripts\configure-app-url.ps1
+npm run db:provision-app
+```
+
+The URL helper stores the random credential in `.env` without displaying it and refuses to replace an existing app URL. The provisioning command connects with `DATABASE_URL`, verifies both URLs target the same loopback database, provisions `inventory_runtime`, clears elevated role attributes and direct grants, checks for unexpected inherited memberships and owned objects, and grants only membership in `inventory_app`. It does not print either password. It requires migration 002 to have created the group role. If a pre-existing `inventory_runtime` role has other memberships or owns database objects, it stops so an operator can review them.
 
 ## Relationships and integrity rules
 
@@ -48,9 +60,11 @@ The owner must run this wrapper in a normal PowerShell terminal to upgrade their
 - `stock_movements` references one product and one location. It stores a signed nonzero bigint delta, movement type, reason, optional actor/request UUIDs, optional unit price, and event timestamp. Movement types are `receiving`, `sale`, `return`, and `adjustment`; receiving/return quantities must be positive and sale quantities negative when written through the function.
 - `inventory_stock` has one row per product/location pair and a nonnegative cached quantity. Migration 002 initializes rows from the old movement sums and aborts if any legacy balance is negative.
 - `stock_balances` is a view over `inventory_stock`. The `record_stock_movement` function locks the balance row, rejects a negative result, updates the cached quantity, and inserts the movement atomically. It supports request UUID idempotency.
+- `save_product` is the controlled catalog create/edit/deactivate path. It validates fields and writes product rows so the audit trigger captures before/after data. The application role has no direct product-table write grant.
+- `inventory_function_owner` is a no-login role used to own the security-definer stock, product, and audit routines. It receives only the table and sequence privileges those routines need; its temporary schema `CREATE` grant is revoked in the migration.
 - Product insert/update/delete operations remain allowed and are recorded in `inventory_audit_log` with before/after row data when applicable. Migration 002 does not backfill pre-existing product or movement rows into the audit log; it captures events from trigger installation onward.
 - Triggers reject updates/deletes to movement and audit rows and reject `TRUNCATE` on both tables for normal operations. Product catalog rows themselves are not immutable. Database owners/superusers can bypass or change these controls.
-- Migration 002 revokes `CREATE` on schema `public` from `PUBLIC`. It creates `inventory_app` as `NOLOGIN` and grants it only `SELECT` on catalog/history/view/audit objects plus `EXECUTE` on `record_stock_movement`. It does not grant catalog write operations directly. A database operator must deliberately provision a login and group membership before that role can be used.
+- Migration 002 revokes `CREATE` on schema `public` from `PUBLIC`. It creates `inventory_app` as `NOLOGIN` and grants it limited reads plus stock-function execution; migration 003 adds product-function execution. It does not grant direct table writes. `inventory_runtime` is a separate local login provisioned by `npm run db:provision-app` and inherits the group role.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the entity diagram and stock transaction flow, and [SECURITY.md](SECURITY.md) for limits on the actor and database-role boundaries.
 
@@ -108,8 +122,8 @@ npm run db:migrate
 npm run db:check
 ```
 
-`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001 and 002; it does not add demo products or stock.
+`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001, 002, and 003; it does not add demo products or stock. Run `npm run db:provision-app` afterward to recreate the local app login.
 
 ## Verification status
 
-The owner previously supplied output for a successful initial PostgreSQL setup in an external PowerShell session. Migration 002 remains unapplied and the current schema upgrade still requires the owner to rerun `scripts/setup-database.ps1`; this agent could not reach port `5433`. GitHub Actions success is not verified. No backup, restore, clean reset, or migration command was executed while preparing this guide.
+The owner reported migration 002 applied successfully. Migration 003 and the separate application login have not been independently applied or verified in this agent session; the agent could not reach port `5433`. GitHub Actions success is not verified. No backup, restore, clean reset, or migration command was executed while preparing this guide.
