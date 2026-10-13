@@ -2,6 +2,7 @@ import pg from 'pg';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { scrypt as scryptCallback, randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 const scrypt = promisify(scryptCallback);
 async function hashPassword(password) {
@@ -23,6 +24,34 @@ async function askHidden(label) {
   try { return await prompt.question(''); }
   finally { prompt.stdoutMuted = false; stdout.write('\n'); }
 }
+function askWindowsPasswords() {
+  // PowerShell's secure prompt prevents Windows terminals from echoing secrets.
+  // The values cross back to this process through a pipe, never the terminal.
+  const script = String.raw`
+$ErrorActionPreference = 'Stop'
+function Read-SecretValue([string] $PromptText) {
+  $secure = Read-Host -Prompt $PromptText -AsSecureString
+  $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+  try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
+  finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
+}
+$password = Read-SecretValue 'Create a unique password (minimum 14 characters)'
+$confirmation = Read-SecretValue 'Confirm password'
+$first = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($password))
+$second = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($confirmation))
+[Console]::Out.Write($first + ':' + $second)
+`;
+  const result = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-Command', script], {
+    encoding: 'utf8',
+    stdio: ['inherit', 'pipe', 'inherit'],
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error('Secure password entry failed. Re-run npm run auth:bootstrap in an interactive PowerShell window.');
+  }
+  const encoded = result.stdout.trim().split(':');
+  if (encoded.length !== 2) throw new Error('Secure password entry did not return both values. No account was created.');
+  return encoded.map((value) => Buffer.from(value, 'base64').toString('utf8'));
+}
 try {
   const existing = new pg.Client({ connectionString: process.env.APP_DATABASE_URL });
   await existing.connect();
@@ -32,12 +61,20 @@ try {
 
   const email = (await prompt.question('Administrator email: ')).trim().toLowerCase();
   const name = (await prompt.question('Display name: ')).trim();
-  const password = await askHidden('Create a unique password (minimum 14 characters): ');
-  const confirmation = await askHidden('Confirm password: ');
+  let password;
+  let confirmation;
+  if (process.platform === 'win32') {
+    prompt.close();
+    stdout.write('Password entry is hidden; no characters or dots will appear while you type.\n');
+    [password, confirmation] = askWindowsPasswords();
+  } else {
+    password = await askHidden('Create a unique password (minimum 14 characters): ');
+    confirmation = await askHidden('Confirm password: ');
+  }
   if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) throw new Error('Enter a valid email address.');
   if (name.length < 1 || name.length > 120) throw new Error('Display name must contain 1 to 120 characters.');
   if (password.length < 14 || password.length > 1024) throw new Error('Password must contain 14 to 1024 characters.');
-  if (password !== confirmation) throw new Error('Passwords do not match.');
+  if (password !== confirmation) throw new Error('Passwords did not match. No account was created. Run npm run auth:bootstrap again and enter the same value at both hidden password prompts.');
 
   const client = new pg.Client({ connectionString: process.env.APP_DATABASE_URL });
   await client.connect();
