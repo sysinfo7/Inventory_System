@@ -5,7 +5,7 @@
 - Git 2.54.0, Node.js 24.16.0, npm 11.13.0, VS Code, Docker CLI 29.5.3, Compose 5.1.4 were already installed.
 - Installed project dependencies: Next.js 16.4.0, React 19.3.0, TypeScript, Tailwind CSS, ESLint, pg and pg types. Exact versions are in package-lock.json.
 - Initialized local Git repository on main. Commit identity configured locally for sysinfo7 with the supplied email. GitHub destination and visibility remain pending.
-- Prepared PostgreSQL 17 Compose configuration and initial schema. Database image has not been downloaded and database connection has not been tested because Docker's Linux engine is unavailable.
+- Prepared PostgreSQL 17 Compose configuration and initial schema. Database image has not been downloaded and database connection has not been tested because this restricted session cannot access Docker's named pipe. The owner reports Docker Desktop is running; the CLI now reports permission denied instead of a missing engine.
 - Generated local database credentials in ignored .env. The example file contains placeholders only.
 
 ## Validation
@@ -31,4 +31,7 @@
 ## Remaining work
 
 Start PostgreSQL, apply and verify schema, commit with the owner's identity, create GitHub repository, push, and verify CI. Then implement inventory features against agreed acceptance criteria.
+
+
+Database setup fallback: run scripts/setup-database.ps1 in a normal PowerShell terminal. Named-pipe access could not be granted by this session's permission interface.
 
