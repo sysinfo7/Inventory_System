@@ -34,7 +34,7 @@ try {
   if (existing.rowCount === 0) {
     // Let PostgreSQL quote the password as a SQL literal; never build it by concatenation.
     const createRole = await client.query(
-      "SELECT format('CREATE ROLE inventory_runtime LOGIN INHERIT CONNECTION LIMIT 5 NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD %L', $1) AS statement",
+      "SELECT format('CREATE ROLE inventory_runtime LOGIN INHERIT CONNECTION LIMIT 5 NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD %L', $1::text) AS statement",
       [appPassword],
     );
     await client.query(createRole.rows[0].statement);
@@ -74,7 +74,7 @@ try {
     if (memberships.rowCount) {
       throw new Error('inventory_runtime has unexpected role memberships; review and remove them before provisioning.');
     }
-    const passwordLiteral = await client.query('SELECT quote_literal($1) AS literal', [appPassword]);
+    const passwordLiteral = await client.query('SELECT quote_literal($1::text) AS literal', [appPassword]);
     await client.query(`ALTER ROLE inventory_runtime LOGIN INHERIT CONNECTION LIMIT 5 NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD ${passwordLiteral.rows[0].literal}`);
   }
   // Remove any old direct grants so access comes only from the reviewed group role.
