@@ -1,6 +1,6 @@
 {
   "name": "inventory-system",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
@@ -19,7 +19,7 @@
     "auth:verify": "node --env-file-if-exists=.env scripts/verify-auth-workflow.mjs"
   },
   "dependencies": {
-    "next": "16.4.0",
+    "next": "16.4.1",
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -31,7 +31,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "16.4.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

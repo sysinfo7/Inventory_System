@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.3.1** — fixes CI cleanup for the new actor and UTC date-range movement-history checks.
+**Project version: 1.3.2** — updates Next.js and its matching ESLint config to 16.4.1; release checks are pending.
 
 ## Versioning
 

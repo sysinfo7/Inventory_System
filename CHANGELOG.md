@@ -2,6 +2,13 @@
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
+## [1.3.2] - 2026-10-14
+
+### Security and maintenance
+
+- Update Next.js and `eslint-config-next` to the signed `16.4.1` patch release.
+- Verify that the production dependency tree has no npm audit advisories. The full development tree still includes the unpatched `braces@3.0.3` advisory through the ESLint plugin; see `docs/SECURITY.md`.
+
 ## [1.3.1] - 2026-10-13
 
 ### Fixed
