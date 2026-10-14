@@ -2,6 +2,15 @@
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
+## [1.2.0] - 2026-10-13
+
+### Security
+
+- Revoke all active sessions when an administrator changes an account role or deactivates the account.
+- Enforce session revocation in PostgreSQL for every account-update path.
+- Restrict the trigger owner to deleting sessions by user ID; it cannot read session tokens or expiration data.
+- Extend authentication verification to prove role changes and deactivation invalidate old sessions, including after account reactivation.
+
 ## [1.1.0] - 2026-10-13
 
 ### Added

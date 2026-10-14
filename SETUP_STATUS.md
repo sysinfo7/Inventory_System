@@ -4,7 +4,7 @@
 
 - The repository uses Node.js 24, npm, Next.js 16.4, TypeScript, PostgreSQL 17, Docker Compose, and `pg`.
 - The local PostgreSQL service is configured on loopback port `5433`; the development web server binds to `127.0.0.1`.
-- Database migrations 001-011 are applied locally. `npm run db:check`, `npm run db:provision-app`, and repeat `npm run db:migrate` passed after the authentication changes.
+- Database migrations 001-014 are applied locally. `npm run db:check`, `npm run db:provision-app`, and repeat `npm run db:migrate` passed after the authentication changes.
 - Migrations 004 and 006 seed `Demo Store` and `Demo Outlet`; migration 005 prevents stock movements for inactive/missing products; migration 007 seeds three fictional products and eight audited movements using the database write functions.
 
 ## Implemented application behavior
@@ -20,6 +20,7 @@
 - Stock writes call `record_stock_movement` through `APP_DATABASE_URL`, passing the verified signed-in user's UUID as actor. The function validates active product status, direction, reason, request-token idempotency, and nonnegative balances transactionally.
 - Customer returns are positive inventory movements available through the stock-receiving permission. Count adjustments require a reason and explicit add/remove direction; only managers and administrators have `stock:adjust`.
 - Administrator account management can create, activate, and deactivate accounts; users cannot deactivate themselves or the last active administrator. Manager, Clerk, and Read-only test accounts are opt-in and use generated passwords.
+- PostgreSQL revokes every existing session when an account role changes or its active flag changes to false. Reactivating an account does not restore previous sessions.
 - Login attempts are reserved atomically in PostgreSQL before password verification. Eight attempts per normalized email/client pair or 100 per client are allowed in a 15-minute window; successful login clears that email/client bucket. HMAC keys use the app connection secret, and expired hashes are pruned in bounded batches. The auth verifier confirms the threshold, retry interval, and least-privilege table access.
 - The authentication verifier now removes its temporary user with the local database administrator connection. Run `npm run auth:cleanup-checks` once to remove temporary users left by earlier verifier versions.
 - These are quantity records; they do not process payments or create accounting entries. Persistent account lockout and recovery remain future security work.
@@ -39,7 +40,8 @@
 - `npm run db:verify-stock` passed after being expanded to cover returns, positive/negative count adjustments, zero and oversell rejection, and all related audit events; its test transaction rolled back. `npm run auth:verify` passed sign-in/session checks, clerk return access, manager-only adjustment visibility, viewer restrictions, logout, and actor audit attribution.
 - `npm run typecheck`, `npm run lint`, `node --check scripts/verify-stock-workflow.mjs`, `node --check scripts/verify-auth-workflow.mjs`, and `git diff --check` passed after the current changes.
 - The `v1.0.0` release commit passed all CI checks on both `main` and the version tag; the documentation follow-up commit `b228585` also passed CI ([run 38491930611](https://github.com/sysinfo7/Inventory_System/actions/runs/38491930611)). Current local auth verification passes including assertions for global response security headers.
-- Migration 011 and the login-throttling auth flow passed locally. `npm run auth:verify`, `npm run db:verify-stock`, `npm run db:check`, `npm run lint`, and `npm run typecheck` passed; GitHub Actions for this `v1.1.0` work still needs to run after push.
+- Migration 011 and login throttling passed locally. GitHub Actions passed all `v1.1.0` checks on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38494697769) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38494697537).
+- Migrations 012–014 and the session-revocation auth flow passed locally. `npm run db:migrate`, `npm run auth:verify`, `npm run lint`, and `npm run typecheck` passed, including role-change revocation, deactivation revocation, and preventing session reuse after reactivation. Hosted CI for `v1.2.0` remains pending publication.
 - The local administrator account has been created and the owner has confirmed signing in. The bootstrap script requires each operator to choose their own private password.
 
 ## Owner's next local steps
@@ -48,4 +50,4 @@
 2. Keep the verified local database dump in the ignored `backups/` directory, and store a second copy in a secure location outside this checkout.
 3. Consider a clean reset rehearsal only when you are ready to discard and recreate the local demo database.
 
-Keep the app local and use fictional data; persistent account lockout, password recovery, session invalidation on role changes, and production security configuration remain outstanding.
+Keep the app local and use fictional data; persistent account lockout, password recovery, and production security configuration remain outstanding.

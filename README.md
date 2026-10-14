@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.1.0** — adds persistent login throttling and browser security hardening.
+**Project version: 1.2.0** — adds persistent login throttling, browser security hardening, and immediate session revocation after access changes.
 
 ## Versioning
 
@@ -14,7 +14,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in with persistent rate limiting, role-based permissions, and administrator user management. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling. The expanded rollback-only stock/auth checks passed locally, including returns, count corrections, role visibility, and sign-in throttling. GitHub Actions passed through `v1.0.1`; CI for `v1.1.0` will run when it is pushed. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke all sessions when an account role changes or the account is deactivated. Rollback-only stock and authentication checks pass locally, including returns, count corrections, role visibility, sign-in throttling, and session revocation. GitHub Actions passed `v1.1.0`; CI for `v1.2.0` will run when it is pushed. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -66,7 +66,7 @@ npm run db:verify-stock
 npm run auth:verify
 ```
 
-GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. The current `v1.0.1` state passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366944) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366449). CI for the pending `v1.1.0` changes will run after push.
+GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. `v1.1.0` passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38494697769) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38494697537). CI for the pending `v1.2.0` changes will run after push.
 
 ## Security boundary
 
@@ -74,6 +74,6 @@ The local PostgreSQL port and Next.js development server bind to loopback. The a
 
 ## Planned first features
 
-1. Password recovery, account lockout policy, and full session-revocation policy after role changes.
+1. Password recovery and a persistent account lockout policy.
 2. A production security review and deployment configuration; keep the verified backup local unless a secure off-checkout destination is chosen.
 3. Purchase orders, suppliers, and deployment work after the local portfolio scope is complete.

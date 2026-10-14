@@ -1,6 +1,6 @@
 # Database setup and operations
 
-These instructions cover the local PostgreSQL 17 development database. The web app includes a product catalog, stock workflow, movement activity, authentication, and role checks. Migrations 008–010 add application identities/sessions, authenticated audit attribution, and actor foreign keys. Do not use these local-development steps as production deployment instructions.
+These instructions cover the local PostgreSQL 17 development database. The web app includes a product catalog, stock workflow, movement activity, authentication, and role checks. Migrations 008–010 add application identities/sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds login throttling; migration 014 revokes sessions after role changes and deactivation. Do not use these local-development steps as production deployment instructions.
 
 For an employer-facing field/key diagram and explanation of the relational model, see [EMPLOYER_DATABASE_DESIGN.md](EMPLOYER_DATABASE_DESIGN.md).
 
@@ -40,6 +40,9 @@ The current migration files are:
 | `db/009_authenticated_audit.sql` | Adds the verified-actor overload of the product save function while preserving migration seeding compatibility. |
 | `db/010_authenticated_actor_foreign_keys.sql` | Enforces that non-null product and movement audit actors reference an application user. |
 | `db/011_authentication_rate_limits.sql` | Adds HMAC-keyed login-throttle buckets and restricted runtime functions for atomic attempt reservation. |
+| `db/012_revoke_sessions_on_access_change.sql` | Adds a trigger to revoke sessions after role changes or account deactivation. |
+| `db/013_remove_unverified_session_trigger.sql` | Removes the initial trigger version after integration testing identified a missing column-level privilege. |
+| `db/014_revoke_sessions_on_access_change.sql` | Installs the verified trigger with only `user_id` column reads and session deletion granted to its restricted owner. |
 
 For an existing checkout/database, the local upgrade wrapper starts PostgreSQL if needed, applies any unapplied migrations, and checks the connection:
 
@@ -47,7 +50,7 @@ For an existing checkout/database, the local upgrade wrapper starts PostgreSQL i
 .\scripts\setup-database.ps1
 ```
 
-This applies pending numbered migrations and checks the connection. Migrations through 011 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
+This applies pending numbered migrations and checks the connection. Migrations through 014 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
 
 ## Provision the application login
 
@@ -159,4 +162,4 @@ npm run db:check
 
 ## Verification status
 
-Migrations through 011 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, the expanded `npm run db:verify-stock`, and `npm run auth:verify` passed; auth verification covers viewer, clerk, manager, login throttling, response headers, and actor attribution. GitHub Actions passed all checks for `v1.0.1` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366944) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366449). A local custom-format backup was created and restored into the separate `inventory_restore_check` database. Verification found 10 migration records, 3 products, 2 locations, 8 stock movements, 11 audit events, and 4 application users; the temporary restore database was then removed. The verified local dump remains in the ignored `backups/` directory. Clean reset remains unverified. The production build still fails under this Windows Turbopack environment because its CSS worker exits before connecting. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.
+Migrations through 014 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, the expanded `npm run db:verify-stock`, and `npm run auth:verify` passed; auth verification covers viewer, clerk, manager, login throttling, response headers, actor attribution, and session revocation after role/deactivation changes. GitHub Actions passed all checks for `v1.1.0` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38494697769) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38494697537). A local custom-format backup was created and restored into the separate `inventory_restore_check` database. Verification found 10 migration records, 3 products, 2 locations, 8 stock movements, 11 audit events, and 4 application users; the temporary restore database was then removed. The verified local dump remains in the ignored `backups/` directory. Clean reset remains unverified. The production build still fails under this Windows Turbopack environment because its CSS worker exits before connecting. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.

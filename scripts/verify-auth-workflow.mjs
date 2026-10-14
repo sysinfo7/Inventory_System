@@ -28,6 +28,27 @@ async function page(path) {
   return fetch(new URL(path, appUrl), { headers: cookie ? { cookie } : {}, redirect: 'manual' });
 }
 
+async function signIn() {
+  const response = await fetch(new URL('/login/authenticate', appUrl), {
+    method: 'POST', redirect: 'manual',
+    headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ email, password }),
+  });
+  const setCookie = response.headers.get('set-cookie') ?? '';
+  cookie = setCookie.split(';', 1)[0];
+  assert(response.status === 303 && cookie.startsWith('inventory_session='), 'Valid credentials did not establish a session.');
+  assert(/httponly/i.test(setCookie) && /samesite=lax/i.test(setCookie), 'Session cookie is missing required browser protections.');
+  return response;
+}
+
+async function assertRevokedAndSignInAgain(message) {
+  const staleSession = await page('/products');
+  const staleHtml = await staleSession.text();
+  assert(staleHtml.includes('Welcome back.') || staleHtml.includes('NEXT_REDIRECT;replace;/login;'), message);
+  cookie = '';
+  await signIn();
+}
+
 try {
   const limiterPrivileges = await pool.query(`
     SELECT (has_table_privilege(current_user, 'public.auth_login_rate_limits', 'SELECT')
@@ -40,25 +61,28 @@ try {
   assert(!limiterPrivileges.rows[0].can_access_table && limiterPrivileges.rows[0].can_reserve && limiterPrivileges.rows[0].can_clear,
     'Runtime role has incorrect access to the login rate-limit storage/functions.');
 
+  const sessionTriggerPrivileges = await pool.query(`
+    SELECT has_table_privilege('inventory_function_owner', 'public.app_sessions', 'DELETE') AS can_delete_sessions,
+           has_column_privilege('inventory_function_owner', 'public.app_sessions', 'user_id', 'SELECT') AS can_read_session_owner,
+           has_column_privilege('inventory_function_owner', 'public.app_sessions', 'token_hash', 'SELECT') AS can_read_session_token,
+           has_column_privilege('inventory_function_owner', 'public.app_sessions', 'expires_at', 'SELECT') AS can_read_expiry,
+           has_function_privilege(current_user, 'public.revoke_user_sessions_on_access_change()', 'EXECUTE') AS can_call_trigger
+  `);
+  assert(sessionTriggerPrivileges.rows[0].can_delete_sessions && sessionTriggerPrivileges.rows[0].can_read_session_owner
+      && !sessionTriggerPrivileges.rows[0].can_read_session_token && !sessionTriggerPrivileges.rows[0].can_read_expiry
+      && !sessionTriggerPrivileges.rows[0].can_call_trigger,
+    'Session-revocation trigger privileges exceed the intended narrow access.');
+
   const salt = randomBytes(16);
   const derived = await scrypt(password, salt, 64);
   const passwordHash = `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`;
   await pool.query("INSERT INTO app_users(id, email, display_name, password_hash, role) VALUES ($1, $2, $3, $4, 'viewer')", [userId, email, 'Temporary Auth Check', passwordHash]);
 
-  const login = await fetch(new URL('/login/authenticate', appUrl), {
-    method: 'POST', redirect: 'manual',
-    headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ email, password }),
-  });
+  const login = await signIn();
   assert(login.headers.get('x-content-type-options') === 'nosniff', 'Missing MIME-sniffing protection header.');
   assert(login.headers.get('x-frame-options') === 'DENY', 'Missing clickjacking protection header.');
   assert(login.headers.get('referrer-policy') === 'strict-origin-when-cross-origin', 'Missing referrer privacy header.');
   assert(login.headers.get('permissions-policy') === 'camera=(), microphone=(), geolocation=()', 'Missing restrictive browser permissions header.');
-  const setCookie = login.headers.get('set-cookie') ?? '';
-  cookie = setCookie.split(';', 1)[0];
-  assert(login.status === 303 && cookie.startsWith('inventory_session='), 'Valid credentials did not establish a session.');
-  assert(/httponly/i.test(setCookie) && /samesite=lax/i.test(setCookie), 'Session cookie is missing required browser protections.');
-
   // Keep requests sequential because the local PostgreSQL login has a small connection cap.
   const products = await page('/products');
   const productHtml = await products.text();
@@ -79,21 +103,31 @@ try {
   assert(forbiddenRedirect(editHtml), `Read-only user was not blocked from the product editor (HTTP ${editPage.status}): ${editHtml.slice(-1800)}`);
   assert(forbiddenRedirect(userHtml), `Read-only user was not blocked from user management (HTTP ${userAdmin.status}): ${userHtml.slice(-1800)}`);
 
-  // Change this temporary account's role in the disposable/local verification DB.
-  // currentUser resolves roles from PostgreSQL on each request, so the same
-  // session verifies that clerk and manager controls follow server-side grants.
+  // Role changes invalidate existing sessions; sign in again to verify the new grants.
   await pool.query("UPDATE app_users SET role = 'clerk' WHERE id = $1::uuid", [userId]);
+  await assertRevokedAndSignInAgain('Changing a role did not revoke its prior session.');
   const clerkStock = await page('/stock');
   const clerkStockHtml = await clerkStock.text();
   assert(clerkStock.status === 200 && clerkStockHtml.includes('Record customer return'), 'Clerk could not record customer returns.');
   assert(!clerkStockHtml.includes('Inventory adjustment') && !clerkStockHtml.includes('Record adjustment'), 'Clerk was shown manager-only adjustment controls.');
 
   await pool.query("UPDATE app_users SET role = 'manager' WHERE id = $1::uuid", [userId]);
+  await assertRevokedAndSignInAgain('Changing a role did not revoke its prior session.');
   const managerStock = await page('/stock');
   const managerStockHtml = await managerStock.text();
   assert(managerStock.status === 200 && managerStockHtml.includes('Inventory adjustment'), 'Manager could not access count adjustments.');
   assert(permissionHtml.includes('Record inventory adjustments'), 'The permission matrix omitted the adjustment capability.');
   await pool.query("UPDATE app_users SET role = 'viewer' WHERE id = $1::uuid", [userId]);
+  await assertRevokedAndSignInAgain('Changing a role did not revoke its prior session.');
+
+  // Deactivation removes sessions, and reactivation cannot restore an old login.
+  const sessionCount = await pool.query('SELECT count(*)::int AS count FROM app_sessions WHERE user_id = $1::uuid', [userId]);
+  assert(sessionCount.rows[0].count === 1, 'Authentication workflow did not create one session for the test account.');
+  await pool.query('UPDATE app_users SET active = false WHERE id = $1::uuid', [userId]);
+  const sessionsAfterDisable = await pool.query('SELECT count(*)::int AS count FROM app_sessions WHERE user_id = $1::uuid', [userId]);
+  assert(sessionsAfterDisable.rows[0].count === 0, 'Deactivating an account left a reusable session behind.');
+  await pool.query('UPDATE app_users SET active = true WHERE id = $1::uuid', [userId]);
+  await assertRevokedAndSignInAgain('Reactivation unexpectedly preserved an earlier session.');
 
   const logout = await fetch(new URL('/logout', appUrl), {
     method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie },
@@ -138,7 +172,7 @@ try {
     throw error;
   } finally { client.release(); }
 
-  console.log('Authentication verified: sign-in, protected cookie, response security headers, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, session revocation, login throttling, and actor audit attribution passed.');
+  console.log('Authentication verified: sign-in, protected cookie, response security headers, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution passed.');
 } finally {
   if (cookie) {
     try { await fetch(new URL('/logout', appUrl), { method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie } }); } catch { /* The session row is also removed directly below. */ }
