@@ -2,6 +2,17 @@
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
+## [1.2.1] - 2026-10-13
+
+### Fixed
+
+- Make all seven movement fields fit in the mobile activity record, including the signed quantity and recorded-by actor.
+
+### Documentation
+
+- Add narrow-screen stock-entry and successful receipt screenshots to the user manual.
+- Document the one-unit local demo receipt shown in the screenshots; clean database setup still seeds the original eight sample movements.
+
 ## [1.2.0] - 2026-10-13
 
 ### Security

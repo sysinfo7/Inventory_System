@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.2.0** — adds persistent login throttling, browser security hardening, and immediate session revocation after access changes.
+**Project version: 1.2.1** — fixes the mobile movement-history layout and adds manual screenshots for responsive stock entry and successful audit-attributed receipts.
 
 ## Versioning
 
@@ -14,7 +14,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in with persistent rate limiting, role-based permissions, and administrator user management. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke all sessions when an account role changes or the account is deactivated. Rollback-only stock and authentication checks pass locally, including returns, count corrections, role visibility, sign-in throttling, and session revocation. GitHub Actions passed `v1.1.0`; CI for `v1.2.0` will run when it is pushed. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke all sessions when an account role changes or the account is deactivated. Rollback-only stock and authentication checks pass locally, including returns, count corrections, role visibility, sign-in throttling, and session revocation. GitHub Actions passed `v1.1.0`; the `v1.2.0` push succeeded, with the main-branch job passing and the tag-job status awaiting confirmation. The `v1.2.1` release includes a verified responsive audit-history fix and manual screenshots. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 

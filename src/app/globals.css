@@ -306,6 +306,15 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .product-table td:first-child { grid-column: 1 / -1; }
   .product-table td:last-child { position: absolute; top: 16px; right: 15px; width: auto; }
   .product-table td:last-child::before { content: none; }
+  .activity-table { display: block; width: 100%; min-width: 0; }
+  .activity-table tbody, .activity-table tr, .activity-table td { display: block; width: 100%; }
+  .activity-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 10px; padding: 15px; }
+  .activity-table td { height: auto; min-width: 0; padding: 0 !important; border: 0; white-space: normal; }
+  .activity-table td::before { display: block; margin-bottom: 5px; color: #929b94; content: attr(data-label); font-size: 8px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+  .activity-table td:nth-child(1), .activity-table td:nth-child(2), .activity-table td:nth-child(6) { grid-column: 1 / -1; }
+  .activity-table td:last-child { position: static; width: auto; max-width: none; }
+  .activity-table td:last-child::before { content: attr(data-label); }
+  .activity-table time { white-space: normal; }
   .product-name { max-width: calc(100vw - 100px); }
   .editor-panel { padding: 18px 15px; }
   .form-grid { grid-template-columns: 1fr; gap: 17px; }
