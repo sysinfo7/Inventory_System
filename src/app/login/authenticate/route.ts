@@ -28,5 +28,8 @@ export async function POST(request: Request) {
     response.headers.set('Retry-After', String(result.retryAfterSeconds ?? 900));
     return response;
   }
-  return NextResponse.redirect(new URL(result.user ? '/' : '/login?error=1', request.url), 303);
+  const destination = result.user
+    ? (result.user.passwordChangeRequired ? '/account/security?required=1' : '/')
+    : '/login?error=1';
+  return NextResponse.redirect(new URL(destination, request.url), 303);
 }

@@ -11,7 +11,8 @@ export default function LoginPage(props: Props) {
 
 async function LoginContent({ searchParams }: Props) {
   await connection();
-  if (await currentUser()) redirect('/');
+  const signedInUser = await currentUser();
+  if (signedInUser) redirect(signedInUser.passwordChangeRequired ? '/account/security?required=1' : '/');
   const params = await searchParams;
   return <main className="page-shell auth-shell">
     <section className="auth-panel" aria-labelledby="login-heading">

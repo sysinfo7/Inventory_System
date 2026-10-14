@@ -5,9 +5,9 @@
 
 ## Purpose
 
-This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`016`](../db/016_password_change_audit.sql); notable files include the product and inventory controls, demo seed, auth/session schema, authenticated audit function, actor foreign keys, login-throttle store, and session revocation rules. Operational commands are in [`DATABASE.md`](DATABASE.md).
+This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`018`](../db/018_distinguish_admin_reset_events.sql); notable files include the product and inventory controls, demo seed, auth/session schema, authenticated audit function, actor foreign keys, login-throttle store, and session revocation rules. Operational commands are in [`DATABASE.md`](DATABASE.md).
 
-The current web application includes catalog, stock, movement activity, authentication, role-based permissions, database-backed login throttling, and automatic session revocation after role/deactivation/password changes. Signed-in users can change a password after re-entering the current password. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys; migration 011 adds hashed rate-limit buckets; migration 014 adds role/deactivation session revocation; migration 016 adds append-only password-change security events and session revocation. Role enforcement is in trusted app server code; PostgreSQL connection roles remain separate.
+The current web application includes catalog, stock, movement activity, authentication, role-based permissions, database-backed login throttling, and automatic session revocation after role/deactivation/password changes. Signed-in users can change a password after re-entering the current password. Administrators can set a temporary password for an active user; the user must replace it before entering protected application pages. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys; migration 011 adds hashed rate-limit buckets; migration 014 adds role/deactivation session revocation; migration 016 adds password-change events; migration 017 adds forced password change and administrator actor attribution; migration 018 classifies every forced credential as an administrator reset, including seed tooling without an actor session. Role enforcement is in trusted app server code; PostgreSQL connection roles remain separate.
 
 ## Entity relationship diagram
 
@@ -77,6 +77,7 @@ erDiagram
         text email UK
         text display_name
         text password_hash
+        boolean password_change_required
         text role
         boolean active
         timestamptz created_at
@@ -97,7 +98,8 @@ erDiagram
     APP_SECURITY_EVENTS {
         bigint id PK
         uuid user_id "subject UUID, retained without account FK"
-        text event_type "password_changed"
+        uuid actor_id "nullable initiating actor, retained without account FK"
+        text event_type "password_changed or admin_password_reset"
         timestamptz occurred_at
     }
 ```
@@ -106,7 +108,7 @@ erDiagram
 
 `AUTH_LOGIN_RATE_LIMITS` is intentionally unconnected to the business entities: its key is an HMAC digest of a normalized email/client pair or client address. It retains no raw email/IP and uses a time window; expired buckets are pruned in bounded batches during later sign-in attempts.
 
-`APP_SECURITY_EVENTS` keeps a pseudonymous account UUID and timestamp for password changes. It deliberately has no account foreign key, so deleting an account does not erase security history; it stores no email, password, or password hash. A restricted database trigger writes the event and revokes all sessions as part of the password update. The application runtime role cannot read or write this table directly.
+`APP_SECURITY_EVENTS` keeps the subject UUID, nullable initiating actor UUID, event type, and timestamp for password changes and administrator resets. It deliberately has no account foreign keys, so deleting either account does not erase security history; it stores no email, password, or password hash. A restricted database trigger writes the event and revokes all sessions as part of the password update. For administrator resets, the trusted application route supplies the actor from the verified server session; this attribution is application-enforced rather than independently authenticated by PostgreSQL. The application runtime role cannot read or write this table directly.
 
 ## Tables and keys
 
@@ -121,10 +123,10 @@ erDiagram
 | `save_product` | Controlled database function used by the catalog create/edit form. | Security-definer function with fixed search path; validates product fields; granted to `inventory_app`, not `PUBLIC`. Product triggers append audit changes. |
 | `stock_balances` | Read view exposing product, location, and quantity from `inventory_stock`. | A view, not a stored table or independent source of truth. |
 | `schema_migrations` | Migration version, SHA-256 checksum, and application time. | Migration version is the primary key; the runner rejects edits to a migration already recorded as applied. |
-| `app_users` | Application identity, normalized unique email, scrypt password hash, role, and active state. | UUID primary key; email case-insensitively unique; role constrained to the defined role set. |
+| `app_users` | Application identity, normalized unique email, scrypt password hash, role, active state, and forced-password-change flag. | UUID primary key; email case-insensitively unique; role constrained to the defined role set. Temporary credentials require a replacement before access to protected pages or actions. |
 | `app_sessions` | Hashed opaque login token with user and expiry. | UUID primary key; user foreign key; token hash unique; raw cookie token is never persisted. |
 | `auth_login_rate_limits` | Short-lived attempt counters keyed by HMAC digests for email/client and client scopes. | Digest bucket key is the primary key; no raw identity or IP address is stored; runtime can only call the narrow security-definer functions. |
-| `app_security_events` | Append-only record of a password change by subject UUID and timestamp. | Identity primary key; event type constraint; deliberately has no account foreign key so history survives account removal; runtime has no direct table access. |
+| `app_security_events` | Append-only record of password changes and administrator resets, with subject and initiating actor UUIDs. | Identity primary key; event type constraint; deliberately has no account foreign keys so history survives account removal; runtime has no direct table access. |
 
 `stock_movements.created_at` is retained from the initial schema; `occurred_at` was added for the effective event time. New movements set both when written through the database function. Existing rows receive a default `occurred_at` during migration 002.
 
@@ -185,8 +187,12 @@ To apply or upgrade the local development database from PowerShell, run `scripts
 - Migration 005 updates the stock function to require an active product while holding a `FOR SHARE` lock.
 - Migration 006 ensures both demo locations exist, even when migration 004 skipped `Demo Store` because a location was already configured.
 - Migration 007 seeds three fictional products and eight audited movement entries through the controlled product and stock functions, preserving existing matching rows.
+- Migration 016 adds append-only password-change security events and revokes all user sessions when a password hash changes.
+- Migration 017 adds the `password_change_required` account flag, administrator-reset events with the verified application actor UUID, and an index for actor/time queries. Reset events preserve actor and subject UUIDs without foreign keys so account removal does not erase the audit history. Migration 018 classifies any password-hash update that leaves `password_change_required` enabled as an administrator-reset event, including local seed tooling without a signed-in actor.
+- Login verifies the password and creates its session while holding an account-row lock. An administrator reset locks actor and target accounts in stable order, updates the password hash and forced-change flag, and relies on the trigger to write the audit event and revoke sessions in the same transaction.
+- A newly created or admin-reset account must replace its temporary password through `/account/security` before the authorization helpers allow protected pages or actions. Email recovery is not implemented.
 - `/stock` implements selected-location active-product balances, reorder attention, stock receipt, sellable returns, manual sale deductions, and manager/administrator count adjustments. `/activity` implements location/type/text filters and a newest-first list capped at 200 movements.
-- Migrations through 015 and database connection are verified locally. The expanded rollback-only stock and auth checks passed locally for returns, adjustments, login throttling, clerk/manager boundaries, audit writes, and session revocation. The owner has confirmed administrator sign-in and role test accounts; the local backup was restored and verified separately. The activity page supports actor and inclusive UTC date filters. GitHub Actions passed for `v1.3.1` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38501795878) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38501795851). A second off-checkout backup copy and production deployment review remain future work.
+- Migrations through 018 and the database connection are verified locally. The expanded rollback-only stock and auth checks passed locally for returns, adjustments, login throttling, clerk/manager boundaries, audit writes, and session revocation. The owner has confirmed administrator sign-in and role test accounts; the local backup was restored and verified separately. The activity page supports actor and inclusive UTC date filters. GitHub Actions results for release `v1.4.0` are recorded in [the setup status](../SETUP_STATUS.md); administrator-reset CI coverage is pending the feature push. A second off-checkout backup copy and production deployment review remain future work.
 - No sample production or customer information is included. Use fictional data in demos.
 
 Update this document whenever a migration changes a table, column, key, relationship, constraint, index, database function, trigger, role grant, or implementation status. Keep the diagram and relationship descriptions aligned with the SQL files, and clearly separate implemented behavior from planned application features. It is also linked from the README and database operations guide.

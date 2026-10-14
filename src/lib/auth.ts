@@ -11,7 +11,7 @@ const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
 
 export type Role = 'admin' | 'manager' | 'clerk' | 'viewer';
 export type Permission = 'catalog:read' | 'catalog:write' | 'stock:read' | 'stock:receive' | 'stock:sale' | 'stock:adjust' | 'activity:read' | 'users:manage';
-export type AuthUser = { id: string; email: string; displayName: string; role: Role };
+export type AuthUser = { id: string; email: string; displayName: string; role: Role; passwordChangeRequired: boolean };
 export type AuthenticationResult = { user: AuthUser | null; rateLimited: boolean; retryAfterSeconds?: number };
 
 const grants: Record<Role, readonly Permission[]> = {
@@ -121,7 +121,7 @@ export async function changeCurrentPassword(currentPassword: string, newPassword
     }
 
     const updated = await client.query(
-      'UPDATE app_users SET password_hash = $1, updated_at = now() WHERE id = $2::uuid AND password_hash = $3 AND active = true',
+      'UPDATE app_users SET password_hash = $1, password_change_required = false, updated_at = now() WHERE id = $2::uuid AND password_hash = $3 AND active = true',
       [await hashPassword(newPassword), account.rows[0].id, oldHash],
     );
     if (updated.rowCount !== 1) {
@@ -165,28 +165,43 @@ export async function authenticate(email: string, password: string, clientAddres
     return { user: null, rateLimited: true, retryAfterSeconds: Number(limiter.rows[0].retry_after_seconds) };
   }
 
-  const result = await getDbPool().query(`
-    SELECT id, email, display_name, password_hash, role
-    FROM app_users WHERE lower(email) = lower($1) AND active = true LIMIT 1
-  `, [normalizedEmail]);
-  const user = result.rows[0];
-  // Verify a fixed dummy hash on unknown users to reduce email enumeration timing leaks.
-  const fallbackHash = 'scrypt$00000000000000000000000000000000$'.concat('00'.repeat(64));
-  if (!(await verifyPassword(password, user?.password_hash ?? fallbackHash)) || !user) {
-    return { user: null, rateLimited: false };
-  }
-
+  const authClient = await pool.connect();
+  let user: { id: string; email: string; display_name: string; password_hash: string; role: Role; password_change_required: boolean } | undefined;
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await pool.query('SELECT clear_auth_login_email_attempts($1)', [emailDigest]);
-  await pool.query('INSERT INTO app_sessions(user_id, token_hash, expires_at) VALUES ($1::uuid, $2, $3)', [user.id, tokenDigest(token), expiresAt]);
+  try {
+    await authClient.query('BEGIN');
+    // Serialize login with password changes and deactivation so an old password
+    // cannot create a fresh session after an administrator reset commits.
+    const result = await authClient.query(`
+      SELECT id, email, display_name, password_hash, role, password_change_required
+      FROM app_users WHERE lower(email) = lower($1) AND active = true LIMIT 1 FOR UPDATE
+    `, [normalizedEmail]);
+    user = result.rows[0];
+    // Verify a fixed dummy hash on unknown users to reduce email enumeration timing leaks.
+    const fallbackHash = 'scrypt$00000000000000000000000000000000$'.concat('00'.repeat(64));
+    if (!(await verifyPassword(password, user?.password_hash ?? fallbackHash)) || !user) {
+      await authClient.query('ROLLBACK');
+      return { user: null, rateLimited: false };
+    }
+
+    await authClient.query('SELECT clear_auth_login_email_attempts($1)', [emailDigest]);
+    await authClient.query('INSERT INTO app_sessions(user_id, token_hash, expires_at) VALUES ($1::uuid, $2, $3)', [user.id, tokenDigest(token), expiresAt]);
+    await authClient.query('COMMIT');
+  } catch (error) {
+    await authClient.query('ROLLBACK');
+    throw error;
+  } finally {
+    authClient.release();
+  }
+
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/',
     expires: expiresAt,
   });
   return {
-    user: { id: String(user.id), email: user.email, displayName: user.display_name, role: user.role },
+    user: { id: String(user.id), email: user.email, displayName: user.display_name, role: user.role, passwordChangeRequired: user.password_change_required },
     rateLimited: false,
   };
 }
@@ -195,17 +210,18 @@ export async function currentUser(): Promise<AuthUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const result = await getDbPool().query(`
-    SELECT u.id, u.email, u.display_name, u.role
+    SELECT u.id, u.email, u.display_name, u.role, u.password_change_required
     FROM app_sessions AS s JOIN app_users AS u ON u.id = s.user_id
     WHERE s.token_hash = $1 AND s.expires_at > now() AND u.active = true
   `, [tokenDigest(token)]);
   const user = result.rows[0];
-  return user ? { id: String(user.id), email: user.email, displayName: user.display_name, role: user.role } : null;
+  return user ? { id: String(user.id), email: user.email, displayName: user.display_name, role: user.role, passwordChangeRequired: user.password_change_required } : null;
 }
 
-export async function requireUser(): Promise<AuthUser> {
+export async function requireUser(options: { allowPasswordChange?: boolean } = {}): Promise<AuthUser> {
   const user = await currentUser();
   if (!user) redirect('/login');
+  if (user.passwordChangeRequired && !options.allowPasswordChange) redirect('/account/security?required=1');
   return user;
 }
 

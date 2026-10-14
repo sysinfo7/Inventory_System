@@ -31,7 +31,7 @@ export async function createUserAction(form: FormData) {
     redirect('/users?error=invalid');
   }
   try {
-    await getDbPool().query('INSERT INTO app_users(email, display_name, password_hash, role) VALUES ($1, $2, $3, $4)', [email, name, await passwordHash(password), role]);
+    await getDbPool().query('INSERT INTO app_users(email, display_name, password_hash, role, password_change_required) VALUES ($1, $2, $3, $4, true)', [email, name, await passwordHash(password), role]);
   } catch (error) {
     const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
     if (code === '23505') redirect('/users?error=duplicate');

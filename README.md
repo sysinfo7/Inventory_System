@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.4.0** — adds authenticated self-service password changes, an append-only password-change event, and database-enforced session revocation.
+**Project version: 1.5.0** — adds administrator-managed temporary password resets, mandatory replacement before protected access, and an actor-attributed security trail.
 
 ## Versioning
 
@@ -14,7 +14,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in with persistent rate limiting, role-based permissions, administrator user management, and self-service password changes. Authenticated product and stock changes record their actor in the inventory audit trail; password changes use a separate security event log. Movement history filters by location, type, product/reason, actor, and inclusive UTC date range. Application permission roles are administrator, manager, clerk, and read-only.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke sessions when an account role changes or it is deactivated; migration 015 adds activity-filter indexes; migration 016 logs password changes and revokes sessions. Authenticated users can change their password after confirming their current password. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke sessions when an account role changes or it is deactivated; migration 015 adds activity-filter indexes; migrations 016–018 log password changes and administrator resets, require temporary credentials to be replaced, and revoke sessions. Authenticated users can change their password after confirming their current password. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -70,10 +70,10 @@ GitHub Actions runs lint, typecheck, a production build, database migrations, le
 
 ## Security boundary
 
-The local PostgreSQL port and Next.js development server bind to loopback. The app uses a dedicated `inventory_runtime` login that inherits app-operation grants from the `inventory_app` group; app user permissions are enforced server-side. AI collaboration agents are project contributors, not inventory accounts, and cannot sign in or act as users. Persistent account lockout, password recovery, and production deployment controls remain future work. See [SECURITY.md](docs/SECURITY.md).
+The local PostgreSQL port and Next.js development server bind to loopback. The app uses a dedicated `inventory_runtime` login that inherits app-operation grants from the `inventory_app` group; app user permissions are enforced server-side. AI collaboration agents are project contributors, not inventory accounts, and cannot sign in or act as users. Email-based password recovery, persistent account lockout, and production deployment controls remain future work. See [SECURITY.md](docs/SECURITY.md).
 
 ## Future work
 
-1. Password recovery, account invitation, and a persistent account lockout policy.
+1. Email-based password recovery, account invitations, and a persistent account lockout policy.
 2. A production security review and deployment configuration; keep the verified backup local unless a secure off-checkout destination is chosen.
 3. Purchase orders, suppliers, and deployment work after the local portfolio scope is complete.

@@ -26,9 +26,9 @@ try {
       const hash = await hashPassword(password);
       const email = `${role}@inventory-demo.invalid`;
       await client.query(`
-        INSERT INTO app_users(email, display_name, password_hash, role, active)
-        VALUES ($1, $2, $3, $4, true)
-        ON CONFLICT (lower(trim(email))) DO UPDATE SET display_name = EXCLUDED.display_name, password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, active = true
+        INSERT INTO app_users(email, display_name, password_hash, role, active, password_change_required)
+        VALUES ($1, $2, $3, $4, true, true)
+        ON CONFLICT (lower(trim(email))) DO UPDATE SET display_name = EXCLUDED.display_name, password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, active = true, password_change_required = true
       `, [email, name, hash, role]);
       console.log(`${role}: ${email} / ${password}`);
     }

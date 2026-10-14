@@ -61,6 +61,12 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .user-list-panel { margin-top: 22px; }
 .user-table { min-width: 750px; }
 .user-table td form { margin: 0; }
+.user-row-actions { display: grid; gap: 8px; }
+.user-reset-details > summary { display: inline-flex; cursor: pointer; list-style: none; }
+.user-reset-details > summary::-webkit-details-marker { display: none; }
+.user-reset-form { display: grid; width: min(290px, 72vw); gap: 10px; margin-top: 10px; border: 1px solid #dce6de; border-radius: 8px; padding: 12px; background: #f7faf7; white-space: normal; }
+.user-reset-form .form-field { margin: 0; }
+.user-reset-form .field-hint { margin: 0; }
 
 .home-shell, .page-shell { width: min(1180px, calc(100% - 64px)); margin: 0 auto; padding: 44px 0 64px; }
 .hero-panel { position: relative; display: flex; min-height: 370px; align-items: center; overflow: hidden; padding: 58px 64px; border: 1px solid #dfe9e1; border-radius: 19px; background: linear-gradient(112deg, #edf5ee 0%, #f0f5ed 53%, #e8f1e9 100%); }

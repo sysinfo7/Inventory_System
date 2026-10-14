@@ -2,6 +2,16 @@
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
+## [1.5.0] - 2026-10-14
+
+### Added
+
+- Let administrators set a matching temporary password for another active account; new accounts and generated permission-test accounts must replace temporary credentials before protected inventory access.
+- Record `admin_password_reset` events with the account subject and initiating administrator where available, then revoke all sessions in the same database transaction.
+- Lock account rows during login verification and session creation so a password reset cannot be bypassed by an in-flight login using the old password.
+- Verify administrator-only access, same-origin checks, forced-change gating, session revocation, audit actors, and a concurrent login/reset in the disposable CI database.
+- Update the account-management guidance, password-reset workflow, and schema documentation.
+
 ## [1.4.0] - 2026-10-14
 
 ### Added

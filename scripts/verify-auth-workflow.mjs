@@ -4,6 +4,10 @@ import { promisify } from 'node:util';
 
 if (!process.env.APP_DATABASE_URL) throw new Error('APP_DATABASE_URL is required.');
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required to remove the temporary verification account.');
+if (process.env.CI !== 'true'
+    && (process.env.AUTH_PASSWORD_CHANGE_CI_TESTS === 'true' || process.env.ACTIVITY_FILTER_CI_TESTS === 'true')) {
+  throw new Error('CI-only auth and activity scenarios write to the disposable verification database; refusing to run them outside CI.');
+}
 const databaseUrl = new URL(process.env.APP_DATABASE_URL);
 if (!['localhost', '127.0.0.1', '::1'].includes(databaseUrl.hostname)) throw new Error('Auth verification only accepts a local database host.');
 const cleanupUrl = new URL(process.env.DATABASE_URL);
@@ -19,17 +23,37 @@ const auditPool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max:
 const userId = randomUUID();
 const email = `auth-check-${userId}@inventory-demo.invalid`;
 const password = randomBytes(24).toString('base64url');
+const resetTargetId = randomUUID();
+const resetTargetEmail = `auth-reset-target-${resetTargetId}@inventory-demo.invalid`;
+const resetTargetPassword = randomBytes(24).toString('base64url');
 let loginPassword = password;
 let cookie = '';
 let ciMovementCreated = false;
 let ciPasswordChanged = false;
+let ciResetTargetCreated = false;
+let ciPasswordResetCompleted = false;
+let resetTargetCookie = '';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function page(path) {
-  return fetch(new URL(path, appUrl), { headers: cookie ? { cookie } : {}, redirect: 'manual' });
+async function hashTestPassword(value) {
+  const salt = randomBytes(16);
+  const key = await scrypt(value, salt, 64);
+  return `scrypt$${salt.toString('hex')}$${key.toString('hex')}`;
+}
+
+async function page(path, sessionCookie = cookie) {
+  return fetch(new URL(path, appUrl), { headers: sessionCookie ? { cookie: sessionCookie } : {}, redirect: 'manual' });
+}
+
+async function postAdminReset(targetId, temporaryPassword, confirmation, sessionCookie = cookie, requestOrigin = appUrl) {
+  return fetch(new URL('/users/password-reset', appUrl), {
+    method: 'POST', redirect: 'manual',
+    headers: { origin: requestOrigin, host: new URL(appUrl).host, cookie: sessionCookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ userId: targetId, temporaryPassword, confirmation }),
+  });
 }
 
 async function signIn() {
@@ -96,6 +120,13 @@ try {
   const derived = await scrypt(password, salt, 64);
   const passwordHash = `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`;
   await pool.query("INSERT INTO app_users(id, email, display_name, password_hash, role) VALUES ($1, $2, $3, $4, 'viewer')", [userId, email, 'Temporary Auth Check', passwordHash]);
+  if (process.env.AUTH_PASSWORD_CHANGE_CI_TESTS === 'true') {
+    await auditPool.query(
+      "INSERT INTO app_users(id, email, display_name, password_hash, role) VALUES ($1, $2, 'Reset Target Check', $3, 'viewer')",
+      [resetTargetId, resetTargetEmail, await hashTestPassword(resetTargetPassword)],
+    );
+    ciResetTargetCreated = true;
+  }
 
   // Verify the password-change trigger transactionally so local checks leave no
   // security event or test session behind. The admin-only connection reads the log.
@@ -107,9 +138,10 @@ try {
     await auditClient.query('BEGIN');
     await auditClient.query('INSERT INTO app_sessions(user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval \'1 hour\')', [userId, syntheticSession]);
     await auditClient.query('UPDATE app_users SET password_hash = $2 WHERE id = $1::uuid', [userId, `scrypt$${changedSalt.toString('hex')}$${changedKey.toString('hex')}`]);
-    const event = await auditClient.query("SELECT event_type FROM app_security_events WHERE user_id = $1::uuid", [userId]);
+    const event = await auditClient.query("SELECT event_type, actor_id FROM app_security_events WHERE user_id = $1::uuid", [userId]);
     const session = await auditClient.query('SELECT count(*)::int AS count FROM app_sessions WHERE user_id = $1::uuid', [userId]);
-    assert(event.rowCount === 1 && event.rows[0].event_type === 'password_changed', 'Password update did not append its security event.');
+    assert(event.rowCount === 1 && event.rows[0].event_type === 'password_changed' && String(event.rows[0].actor_id) === userId,
+      'Password update did not append its security event and actor.');
     assert(session.rows[0].count === 0, 'Password update did not revoke the account sessions.');
   } finally {
     await auditClient.query('ROLLBACK');
@@ -193,6 +225,12 @@ try {
   const managerStockHtml = await managerStock.text();
   assert(managerStock.status === 200 && managerStockHtml.includes('Inventory adjustment'), 'Manager could not access count adjustments.');
   assert(permissionHtml.includes('Record inventory adjustments'), 'The permission matrix omitted the adjustment capability.');
+  if (process.env.AUTH_PASSWORD_CHANGE_CI_TESTS === 'true') {
+    const deniedReset = await postAdminReset(resetTargetId, `${password}-temporary`, `${password}-temporary`);
+    const deniedResetLocation = new URL(deniedReset.headers.get('location') ?? '/', appUrl);
+    assert(deniedReset.status >= 300 && deniedReset.status < 400 && deniedResetLocation.pathname === '/forbidden',
+      'A manager was able to access the administrator-only password reset route.');
+  }
   await pool.query("UPDATE app_users SET role = 'viewer' WHERE id = $1::uuid", [userId]);
   await assertRevokedAndSignInAgain('Changing a role did not revoke its prior session.');
 
@@ -206,15 +244,178 @@ try {
   await assertRevokedAndSignInAgain('Reactivation unexpectedly preserved an earlier session.');
 
   if (process.env.AUTH_PASSWORD_CHANGE_CI_TESTS === 'true') {
+    await pool.query("UPDATE app_users SET role = 'admin' WHERE id = $1::uuid", [userId]);
+    await assertRevokedAndSignInAgain('Restoring the test administrator role did not revoke its prior session.');
+    const targetLogin = await fetch(new URL('/login/authenticate', appUrl), {
+      method: 'POST', redirect: 'manual',
+      headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email: resetTargetEmail, password: resetTargetPassword }),
+    });
+    resetTargetCookie = (targetLogin.headers.get('set-cookie') ?? '').split(';', 1)[0];
+    assert(targetLogin.status === 303 && resetTargetCookie.startsWith('inventory_session='), 'Reset target could not sign in before the administrator reset.');
+    const targetProducts = await page('/products', resetTargetCookie);
+    assert(targetProducts.status === 200 && (await targetProducts.text()).includes('Products'), 'Reset target session could not access inventory before reset.');
+  }
+
+  if (process.env.AUTH_PASSWORD_CHANGE_CI_TESTS === 'true') {
     const securityPage = await page('/account/security');
     const securityHtml = await securityPage.text();
     assert(securityPage.status === 200 && securityHtml.includes('Change password'), 'Signed-in user could not open account security.');
 
-    const postPasswordChange = (currentPassword, newPassword, confirmation, requestOrigin = appUrl) => fetch(new URL('/account/password/change', appUrl), {
+    const postPasswordChange = (currentPassword, newPassword, confirmation, requestOrigin = appUrl, sessionCookie = cookie) => fetch(new URL('/account/password/change', appUrl), {
       method: 'POST', redirect: 'manual',
-      headers: { origin: requestOrigin, host: new URL(appUrl).host, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      headers: { origin: requestOrigin, host: new URL(appUrl).host, cookie: sessionCookie, 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ currentPassword, newPassword, confirmation }),
     });
+
+    const rejectedReset = await postAdminReset(resetTargetId, `${password}-temporary`, 'different-temporary');
+    assert(new URL(rejectedReset.headers.get('location'), appUrl).searchParams.get('error') === 'resetinvalid',
+      'A mismatched temporary password was accepted.');
+    const selfReset = await postAdminReset(userId, `${password}-temporary`, `${password}-temporary`);
+    assert(new URL(selfReset.headers.get('location'), appUrl).searchParams.get('error') === 'selfreset',
+      'An administrator was allowed to reset their own password through user management.');
+    const crossSiteReset = await postAdminReset(resetTargetId, `${password}-temporary`, `${password}-temporary`, cookie, 'https://attacker.invalid');
+    assert(crossSiteReset.status === 403, 'Cross-origin administrator password reset was accepted.');
+
+    const temporaryPassword = `${password}-temporary`;
+    // Hold the target row while both an old-password login and an admin reset
+    // reach PostgreSQL. Whichever request acquires the row first, the reset must
+    // revoke any session created by the competing login before it commits.
+    const resetRaceLock = await auditPool.connect();
+    const resetRaceObserver = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    let resetRaceTransaction = false;
+    let resetRaceObserverConnected = false;
+    let resetRaceResponse;
+    let concurrentOldLogin;
+    try {
+      await resetRaceObserver.connect();
+      resetRaceObserverConnected = true;
+      await resetRaceLock.query('BEGIN');
+      resetRaceTransaction = true;
+      await resetRaceLock.query('SELECT id FROM app_users WHERE id = $1::uuid FOR UPDATE', [resetTargetId]);
+      const resetRequest = postAdminReset(resetTargetId, temporaryPassword, temporaryPassword);
+      const oldLoginRequest = fetch(new URL('/login/authenticate', appUrl), {
+        method: 'POST', redirect: 'manual',
+        headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ email: resetTargetEmail, password: resetTargetPassword }),
+      });
+      let blockedRequests = 0;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const waiting = await resetRaceObserver.query(`
+          SELECT count(*)::int AS count FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock'
+        `);
+        blockedRequests = waiting.rows[0].count;
+        if (blockedRequests >= 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      if (blockedRequests < 2) {
+        await resetRaceLock.query('ROLLBACK');
+        resetRaceTransaction = false;
+        await Promise.allSettled([resetRequest, oldLoginRequest]);
+        throw new Error('Could not coordinate the concurrent login/reset lock test.');
+      }
+      await resetRaceLock.query('COMMIT');
+      resetRaceTransaction = false;
+      [resetRaceResponse, concurrentOldLogin] = await Promise.all([resetRequest, oldLoginRequest]);
+    } finally {
+      if (resetRaceTransaction) await resetRaceLock.query('ROLLBACK');
+      resetRaceLock.release();
+      if (resetRaceObserverConnected) await resetRaceObserver.end();
+    }
+    assert(concurrentOldLogin.status === 303, 'The concurrent old-password login did not complete safely.');
+    const resetResponse = resetRaceResponse;
+    const resetLocation = new URL(resetResponse.headers.get('location'), appUrl);
+    assert(resetResponse.status === 303 && resetLocation.pathname === '/users' && resetLocation.searchParams.get('saved') === 'reset',
+      'The administrator password reset did not complete successfully.');
+    ciPasswordResetCompleted = true;
+    const resetState = await auditPool.query(`
+      SELECT u.password_change_required,
+             (SELECT count(*)::int FROM app_sessions s WHERE s.user_id = u.id) AS session_count
+      FROM app_users u WHERE u.id = $1::uuid
+    `, [resetTargetId]);
+    const resetEvent = await auditPool.query(
+      "SELECT actor_id, event_type FROM app_security_events WHERE user_id = $1::uuid ORDER BY id",
+      [resetTargetId],
+    );
+    assert(resetState.rowCount === 1 && resetState.rows[0].password_change_required && resetState.rows[0].session_count === 0,
+      'Administrator reset did not require a replacement password and revoke existing sessions.');
+    assert(resetEvent.rowCount === 1 && String(resetEvent.rows[0].actor_id) === userId
+      && resetEvent.rows[0].event_type === 'admin_password_reset',
+    'Administrator reset did not preserve the verified actor and reset event type.');
+
+    const staleTarget = await page('/products', resetTargetCookie);
+    const staleTargetHtml = await staleTarget.text();
+    assert(staleTarget.status >= 300 && staleTarget.status < 400
+      || staleTargetHtml.includes('Welcome back.') || staleTargetHtml.includes('NEXT_REDIRECT;replace;/login;'),
+      'A session issued before the administrator reset remained active.');
+    const oldTargetLogin = await fetch(new URL('/login/authenticate', appUrl), {
+      method: 'POST', redirect: 'manual',
+      headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email: resetTargetEmail, password: resetTargetPassword }),
+    });
+    assert(new URL(oldTargetLogin.headers.get('location'), appUrl).searchParams.get('error') === '1',
+      'The original password remained valid after the administrator reset.');
+    const temporaryLogin = await fetch(new URL('/login/authenticate', appUrl), {
+      method: 'POST', redirect: 'manual',
+      headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email: resetTargetEmail, password: temporaryPassword }),
+    });
+    resetTargetCookie = (temporaryLogin.headers.get('set-cookie') ?? '').split(';', 1)[0];
+    const temporaryDestination = new URL(temporaryLogin.headers.get('location'), appUrl);
+    assert(temporaryLogin.status === 303 && temporaryDestination.pathname === '/account/security'
+      && temporaryDestination.searchParams.get('required') === '1'
+      && resetTargetCookie.startsWith('inventory_session='),
+    'Temporary credentials did not lead directly to the required password-change screen.');
+    const blockedProducts = await page('/products', resetTargetCookie);
+    const blockedDestination = new URL(blockedProducts.headers.get('location') ?? '/', appUrl);
+    const blockedProductsHtml = await blockedProducts.text();
+    assert(blockedProducts.status >= 300 && blockedProducts.status < 400
+      && blockedDestination.pathname === '/account/security' && blockedDestination.searchParams.get('required') === '1'
+      || blockedProductsHtml.includes('NEXT_REDIRECT;replace;/account/security?required=1'),
+    `Temporary-password inventory guard was unexpected: HTTP ${blockedProducts.status} ${blockedProducts.headers.get('location') ?? ''} ${blockedProductsHtml.slice(-500)}`);
+    const forcedSecurityPage = await page('/account/security', resetTargetCookie);
+    assert(forcedSecurityPage.status === 200 && (await forcedSecurityPage.text()).includes('temporary password'),
+      'The forced password-change screen was not accessible to the reset user.');
+    const replacementPassword = `${temporaryPassword}-changed`;
+    const targetPasswordChanged = await postPasswordChange(temporaryPassword, replacementPassword, replacementPassword, appUrl, resetTargetCookie);
+    assert(targetPasswordChanged.status === 303
+      && new URL(targetPasswordChanged.headers.get('location'), appUrl).searchParams.get('passwordChanged') === '1',
+    'The reset user could not replace the temporary password.');
+    const completedReset = await auditPool.query(`
+      SELECT u.password_change_required,
+             (SELECT count(*)::int FROM app_sessions s WHERE s.user_id = u.id) AS session_count
+      FROM app_users u WHERE u.id = $1::uuid
+    `, [resetTargetId]);
+    const completedEvents = await auditPool.query(
+      "SELECT actor_id, event_type FROM app_security_events WHERE user_id = $1::uuid ORDER BY id",
+      [resetTargetId],
+    );
+    assert(completedReset.rows[0].password_change_required === false && completedReset.rows[0].session_count === 0,
+      'Changing the temporary password did not clear the requirement and revoke sessions.');
+    assert(completedEvents.rowCount === 2 && completedEvents.rows[0].event_type === 'admin_password_reset'
+      && String(completedEvents.rows[0].actor_id) === userId
+      && completedEvents.rows[1].event_type === 'password_changed'
+      && String(completedEvents.rows[1].actor_id) === resetTargetId,
+    'Reset and replacement password events did not record the correct actor and subject.');
+    const temporaryAfterChange = await fetch(new URL('/login/authenticate', appUrl), {
+      method: 'POST', redirect: 'manual',
+      headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email: resetTargetEmail, password: temporaryPassword }),
+    });
+    assert(new URL(temporaryAfterChange.headers.get('location'), appUrl).searchParams.get('error') === '1',
+      'The temporary password remained valid after replacement.');
+    const replacementLogin = await fetch(new URL('/login/authenticate', appUrl), {
+      method: 'POST', redirect: 'manual',
+      headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email: resetTargetEmail, password: replacementPassword }),
+    });
+    resetTargetCookie = (replacementLogin.headers.get('set-cookie') ?? '').split(';', 1)[0];
+    const restoredProducts = await page('/products', resetTargetCookie);
+    assert(replacementLogin.status === 303 && restoredProducts.status === 200
+      && (await restoredProducts.text()).includes('Products'),
+    'The replacement password did not restore normal inventory access.');
+
     const crossSite = await postPasswordChange(password, `${password}-rotated`, `${password}-rotated`, 'https://attacker.invalid');
     assert(crossSite.status === 403, 'Cross-origin password-change request was accepted.');
     const incorrectPassword = await postPasswordChange(`${password}-wrong`, `${password}-rotated`, `${password}-rotated`);
@@ -305,15 +506,16 @@ try {
     throw error;
   } finally { client.release(); }
 
-  console.log(`Authentication verified: sign-in, protected cookie, response security headers, account security page, rollback-only password-event/session trigger, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution${process.env.ACTIVITY_FILTER_CI_TESTS === 'true' ? ' plus activity actor/date/legacy filters' : ''}${ciPasswordChanged ? ', password-change confirmation, event audit and session revocation' : ''} passed.`);
+  console.log(`Authentication verified: sign-in, protected cookie, response security headers, account security page, rollback-only password-event/session trigger, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution${process.env.ACTIVITY_FILTER_CI_TESTS === 'true' ? ' plus activity actor/date/legacy filters' : ''}${ciPasswordChanged ? ', password-change confirmation, event audit and session revocation' : ''}${ciPasswordResetCompleted ? ', administrator reset, forced-change gate, actor audit, and concurrent-login revocation' : ''} passed.`);
 } finally {
   if (cookie) {
     try { await fetch(new URL('/logout', appUrl), { method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie } }); } catch { /* The session row is also removed directly below. */ }
   }
   const cleanup = new pg.Client({ connectionString: process.env.DATABASE_URL });
   try {
+    if (ciResetTargetCreated || !ciMovementCreated) await cleanup.connect();
+    if (ciResetTargetCreated) await cleanup.query('DELETE FROM app_users WHERE id = $1::uuid', [resetTargetId]);
     if (!ciMovementCreated) {
-      await cleanup.connect();
       await cleanup.query('DELETE FROM app_users WHERE id = $1::uuid', [userId]);
     }
   } finally {
