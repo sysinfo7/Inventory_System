@@ -41,8 +41,8 @@
 
 ## Owner's next local steps
 
-1. Push the current changes when ready so GitHub Actions can verify the new workflows on the hosted build.
-2. Capture the remaining user-manual screenshots from the signed-in app and save them in `docs/screenshots/`.
-3. Complete and document a local database backup and restore rehearsal before relying on the database for anything beyond fictional demo data.
+1. Capture the remaining user-manual screenshots from the signed-in app and save them in `docs/screenshots/`.
+2. Keep the verified local database dump in the ignored `backups/` directory, and store a second copy in a secure location outside this checkout.
+3. Consider a clean reset rehearsal only when you are ready to discard and recreate the local demo database.
 
 Keep the app local and use fictional data; account lockout, password recovery, session invalidation on role changes, and production security configuration remain outstanding.

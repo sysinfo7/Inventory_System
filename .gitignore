@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local database dumps can contain sensitive inventory and account data
+/backups/
+
 # vercel
 .vercel
 

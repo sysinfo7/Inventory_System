@@ -107,7 +107,7 @@ docker compose exec -T db rm -f $containerDump
 Write-Host "Backup written to $hostDump"
 ```
 
-Backups can contain sensitive business data. Store them outside source control, restrict access, and verify a backup by restoring it to a separate database. The command uses the local Compose database and default `inventory` role.
+Backups can contain sensitive business data. Store them outside source control, restrict access, and verify a backup by restoring it to a separate database. The command uses the local Compose database and default `inventory` role. The repository ignores the local `backups/` directory so dump files are not added to Git accidentally.
 
 ## Restore and verify in a separate database
 
@@ -148,4 +148,4 @@ npm run db:check
 
 ## Verification status
 
-Migrations through 010 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, the expanded `npm run db:verify-stock`, and `npm run auth:verify` passed; auth verification covered viewer, clerk, and manager permissions. The local administrator and optional role test accounts are set up. GitHub Actions run #10 passed the prior production build and integration workflow; these new checks need a fresh hosted run. Backup, restore, and clean reset remain unverified. The production build still fails under this Windows Turbopack environment because its CSS worker exits before connecting. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.
+Migrations through 010 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, the expanded `npm run db:verify-stock`, and `npm run auth:verify` passed; auth verification covered viewer, clerk, and manager permissions. GitHub Actions passed for commit `c901035` ([run details](https://github.com/sysinfo7/Inventory_System/actions/runs/38488183122)). A local custom-format backup was created and restored into the separate `inventory_restore_check` database. Verification found 10 migration records, 3 products, 2 locations, 8 stock movements, 11 audit events, and 4 application users; the temporary restore database was then removed. The verified local dump remains in the ignored `backups/` directory. Clean reset remains unverified. The production build still fails under this Windows Turbopack environment because its CSS worker exits before connecting. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.
