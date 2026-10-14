@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Testing
+
+- Add a disposable GitHub Actions test that contends two independent purchase receipt sessions on the same order and confirms only one over-receipt attempt commits.
+- Verify the full workflow and production build on [main commit 6f6abc6](https://github.com/sysinfo7/Inventory_System/actions/runs/38654409673).
+
 ## [1.6.0] - 2026-10-14
 
 ### Added
