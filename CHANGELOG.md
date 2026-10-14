@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.0] - 2026-10-14
+
+### Added
+
+- Add a supplier directory with normalized names, role-controlled edits, administrator-only soft deactivation, and retained purchasing history.
+- Add quantity-only purchase orders with searchable supplier/product selectors, draft editing, submitted snapshots, destination tracking, and explicit submission/cancellation confirmation.
+- Receive all or part of an open purchase order into the selected location in the same transaction as stock movements, receipt records, status updates, and audit events.
+- Protect purchase receipt retries with exact request matching and reject over-receipts, inactive products, cross-order lines, and unauthorized actors.
+- Add the `purchasing:verify` rollback-only workflow check to CI and document the schema, permissions, transaction, operational steps, and manual walkthrough.
+
+### Scope
+
+- Purchasing tracks physical quantities only. Supplier costs, currency, invoices, taxes, payments, and accounting entries are not included.
+- Migrations 019–021, the local database check, purchasing verifier, authentication verifier, and live admin browser walkthrough passed locally. The walkthrough completed PO-00000007 for five units in two receipts and confirmed both activity events and the updated location balance. Purchasing screenshots and purchasing CI remain pending before release.
+
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
 ## [1.5.0] - 2026-10-14

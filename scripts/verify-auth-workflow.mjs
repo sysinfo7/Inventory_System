@@ -163,6 +163,10 @@ try {
   const stock = await page('/stock');
   const stockHtml = await stock.text();
   const activity = await page('/activity');
+  const suppliersPage = await page('/suppliers');
+  const suppliersHtml = await suppliersPage.text();
+  const purchasingPage = await page('/purchase-orders');
+  const purchasingHtml = await purchasingPage.text();
   const permissions = await page('/permissions');
   const permissionHtml = await permissions.text();
   const editPage = await page('/products/new');
@@ -172,6 +176,10 @@ try {
   assert(products.status === 200 && productHtml.includes('Products'), 'Read-only role could not view products.');
   assert(stock.status === 200 && stockHtml.includes('read-only stock access'), 'Read-only stock view or control hiding failed.');
   assert(activity.status === 200, 'Read-only role could not view activity.');
+  assert(suppliersPage.status === 200 && suppliersHtml.includes('Supplier directory') && !suppliersHtml.includes('Add supplier'),
+    'Read-only supplier access or supplier-write control hiding failed.');
+  assert(purchasingPage.status === 200 && purchasingHtml.includes('Order register') && !purchasingHtml.includes('Create purchase order'),
+    'Read-only purchase-order access or purchase-order-write control hiding failed.');
   assert(permissions.status === 200 && permissionHtml.includes('Roles and permissions'), `Role matrix was unavailable to a signed-in user (HTTP ${permissions.status}): ${permissionHtml.slice(0, 500)}`);
   const forbiddenRedirect = (html) => html.includes('Permission required') || html.includes('NEXT_REDIRECT;replace;/forbidden;');
   assert(forbiddenRedirect(editHtml), `Read-only user was not blocked from the product editor (HTTP ${editPage.status}): ${editHtml.slice(-1800)}`);

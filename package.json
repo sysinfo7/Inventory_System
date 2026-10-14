@@ -1,6 +1,6 @@
 {
   "name": "inventory-system",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
@@ -13,7 +13,9 @@
     "db:provision-app": "node --env-file-if-exists=.env scripts/provision-app-role.mjs",
     "db:verify-stock": "node --env-file-if-exists=.env scripts/verify-stock-workflow.mjs",
     "db:verify-stock-concurrency": "node --env-file-if-exists=.env scripts/verify-stock-concurrency.mjs",
+    "purchasing:verify": "node --env-file-if-exists=.env scripts/verify-purchasing-workflow.mjs",
     "auth:bootstrap": "node --env-file-if-exists=.env scripts/bootstrap-admin.mjs",
+    "auth:reset-admin-local": "node --env-file-if-exists=.env scripts/reset-local-admin.mjs",
     "auth:seed-test-users": "node --env-file-if-exists=.env scripts/seed-permission-test-users.mjs",
     "auth:cleanup-checks": "node --env-file-if-exists=.env scripts/cleanup-auth-check-users.mjs",
     "auth:verify": "node --env-file-if-exists=.env scripts/verify-auth-workflow.mjs"

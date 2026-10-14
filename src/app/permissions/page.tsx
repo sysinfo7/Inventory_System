@@ -3,10 +3,10 @@ import { Suspense } from 'react';
 import { requireUser, type Permission, type Role, hasPermission } from '@/lib/auth';
 
 const roles: Array<{ id: Role; label: string; description: string }> = [
-  { id: 'admin', label: 'Administrator', description: 'Full inventory access and user administration.' },
-  { id: 'manager', label: 'Manager', description: 'Manage products, stock, count adjustments, and activity.' },
-  { id: 'clerk', label: 'Clerk', description: 'View inventory and record receipts, customer returns, or sales deductions.' },
-  { id: 'viewer', label: 'Read-only', description: 'Review products, stock, and activity without changes.' },
+  { id: 'admin', label: 'Administrator', description: 'Full inventory access, purchasing, supplier administration, and user administration.' },
+  { id: 'manager', label: 'Manager', description: 'Manage products, purchasing, stock, count adjustments, and activity.' },
+  { id: 'clerk', label: 'Clerk', description: 'View inventory and purchase orders; record receipts, returns, and sales deductions.' },
+  { id: 'viewer', label: 'Read-only', description: 'Review products, stock, suppliers, purchase orders, and activity.' },
 ];
 const permissions: Array<{ id: Permission; label: string }> = [
   { id: 'catalog:read', label: 'View product catalog' }, { id: 'catalog:write', label: 'Add and edit products' },
@@ -14,6 +14,10 @@ const permissions: Array<{ id: Permission; label: string }> = [
   { id: 'stock:sale', label: 'Record sale deductions' }, { id: 'activity:read', label: 'View movement history' },
   { id: 'stock:adjust', label: 'Record inventory adjustments' },
   { id: 'users:manage', label: 'Create and deactivate user accounts' },
+  { id: 'suppliers:read', label: 'View suppliers' }, { id: 'suppliers:write', label: 'Create and edit suppliers' },
+  { id: 'suppliers:manage', label: 'Deactivate or reactivate suppliers' },
+  { id: 'purchase_orders:read', label: 'View purchase orders' }, { id: 'purchase_orders:write', label: 'Create, submit, and cancel purchase orders' },
+  { id: 'purchase_orders:receive', label: 'Receive purchase-order items' },
 ];
 
 export default function PermissionsPage() {

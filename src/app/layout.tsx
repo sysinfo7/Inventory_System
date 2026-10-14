@@ -27,7 +27,7 @@ async function SessionNavigation() {
       <Link href="/">Overview</Link>
       {user && (user.passwordChangeRequired
         ? <Link href="/account/security?required=1">Change password</Link>
-        : <><Link href="/products">Products</Link><Link href="/stock">Stock</Link><Link href="/activity">Activity</Link><Link href="/permissions">Permissions</Link><Link href="/account/security">Account</Link>{user.role === 'admin' && <Link href="/users">Users</Link>}</>)}
+        : <><Link href="/products">Products</Link><Link href="/stock">Stock</Link><Link href="/purchase-orders">Purchase orders</Link><Link href="/suppliers">Suppliers</Link><Link href="/activity">Activity</Link><Link href="/permissions">Permissions</Link><Link href="/account/security">Account</Link>{user.role === 'admin' && <Link href="/users">Users</Link>}</>)}
     </nav>
     {user ? <div className="account-controls"><span className="environment-tag"><span aria-hidden="true">●</span> {user.displayName} · {user.role}</span><LogoutButton /></div>
       : <Link className="button button-secondary sign-in-link" href="/login">Sign in</Link>}

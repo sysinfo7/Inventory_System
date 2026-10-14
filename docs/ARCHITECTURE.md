@@ -77,6 +77,28 @@ Migration 002 adds categories with case-insensitive trimmed-name uniqueness, opt
 
 The SQL stock function and its application forms/actions are implemented. The stock action validates positive whole-unit quantities, IDs, request UUIDs, and reason text, then calls `record_stock_movement` through `APP_DATABASE_URL` with the user ID resolved from the verified server session. The function accepts an optional request UUID; a matching retry returns the original movement ID and reusing that UUID for different details raises an error. The product row is checked as active under `FOR SHARE`; then the balance row is locked, a negative result is rejected, and the balance update, movement insert, and audit trigger complete atomically. The application is configured for local development; production deployment controls have not been implemented or reviewed.
 
+## Supplier purchasing and receipt path
+
+Migrations 019–020 and the application pages define a normalized supplier directory and purchase-order lifecycle. Supplier contact data is stored once. A purchase order references a supplier and one delivery location; distinct order-line rows store active product references and positive whole-unit quantities. Submitted supplier/location/product labels are snapshotted for history. Receipt headers and lines store each actual delivery. Received totals are derived from receipt lines, avoiding a second writable counter. Each receipt line has a unique foreign key to the corresponding stock movement.
+
+```mermaid
+flowchart TD
+    A[Manager or admin creates supplier and draft] --> B[Save audited supplier/order through restricted functions]
+    B --> C[Validate distinct active products, destination, and quantities]
+    C --> D[Submit draft and snapshot supplier, location, and product labels]
+    D --> E[Clerk, manager, or admin records delivered quantities]
+    E --> F[Lock parent order and verify request retry/details]
+    F --> G[Reject inactive product, wrong line, or over-receipt]
+    G --> H[Insert receipt and call stock function for each line]
+    H --> I{Every line succeeds?}
+    I -- No --> J[Rollback receipt, stock, status, and audit]
+    I -- Yes --> K[Link movement IDs, append audit, set partial/completed status]
+```
+
+The entire receipt function runs in the caller's database statement transaction. Stock movements, balance projection, receipt links, audit rows, and lifecycle status therefore commit together. A transaction advisory lock serializes requests sharing a receipt UUID; exact matching retries return the previous result, while changed payloads are rejected. Parent-order row locks serialize separate receipts and cancellation/submission against the remaining amount. Migrations and UI acceptance remain subject to local Docker verification; purchasing concurrency testing is a documented gap.
+
+The permission model gives every role read access; managers/admins create and submit orders and edit suppliers; only administrators activate/deactivate suppliers; clerks/managers/admins receive orders. Pages and server actions check the session role. Purchasing database functions also check the supplied actor UUID against the active role. PostgreSQL still trusts that UUID from the trusted app server over its shared runtime login; it is not an independently authenticated database identity. Purchasing is quantity-only with no cost, currency, invoice, payment, tax, or accounting entry.
+
 Administrator password resets use the verified `users:manage` permission, require an active target other than the acting administrator, and accept a matching temporary password of at least 14 characters. The transaction locks actor and target accounts in a stable order, updates the target hash and `password_change_required`, and sets the verified actor UUID for the restricted audit trigger. That trigger records `admin_password_reset` and deletes the target's sessions atomically. Login locks the account while it verifies the hash and creates a session, preventing a stale-password login from racing past the reset. The user can sign in with the temporary credential but server authorization redirects protected routes/actions until a successful password change clears the flag; the self-service password change event is recorded as `password_changed`.
 
 ```mermaid

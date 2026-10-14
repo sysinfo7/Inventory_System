@@ -34,6 +34,7 @@ jobs:
       - run: npm run db:provision-app
       - run: npm run db:verify-stock
       - run: npm run db:verify-stock-concurrency
+      - run: npm run purchasing:verify
       - name: Start the built application
         run: nohup npm run start > next-server.log 2>&1 &
       - name: Wait for the application

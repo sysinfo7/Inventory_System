@@ -5,9 +5,9 @@
 
 ## Purpose
 
-This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`018`](../db/018_distinguish_admin_reset_events.sql); notable files include the product and inventory controls, demo seed, auth/session schema, authenticated audit function, actor foreign keys, login-throttle store, and session revocation rules. Operational commands are in [`DATABASE.md`](DATABASE.md).
+This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, supplier purchasing, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`021`](../db/021_jsonb_object_length_compatibility.sql); notable files include product and inventory controls, demo seed, auth/session schema, authenticated audit functions, supplier and purchase-order records, transactional receiving, login-throttle storage, session revocation rules, and the purchasing JSONB compatibility helper. Operational commands are in [`DATABASE.md`](DATABASE.md).
 
-The current web application includes catalog, stock, movement activity, authentication, role-based permissions, database-backed login throttling, and automatic session revocation after role/deactivation/password changes. Signed-in users can change a password after re-entering the current password. Administrators can set a temporary password for an active user; the user must replace it before entering protected application pages. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys; migration 011 adds hashed rate-limit buckets; migration 014 adds role/deactivation session revocation; migration 016 adds password-change events; migration 017 adds forced password change and administrator actor attribution; migration 018 classifies every forced credential as an administrator reset, including seed tooling without an actor session. Role enforcement is in trusted app server code; PostgreSQL connection roles remain separate.
+The current web application includes catalog, stock, movement activity, supplier directory, purchase orders, authentication, role-based permissions, database-backed login throttling, and automatic session revocation after role/deactivation/password changes. Purchase orders track quantities only: supplier costs, invoices, payments, tax, and accounting entries are outside scope. Signed-in users can change a password after re-entering the current password. Administrators can set a temporary password for an active user; the user must replace it before entering protected application pages. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys; migration 011 adds hashed rate-limit buckets; migration 014 adds role/deactivation session revocation; migration 016 adds password-change events; migration 017 adds forced password change and administrator actor attribution; migration 018 classifies every forced credential as an administrator reset, including seed tooling without an actor session. Migrations 019-020 add supplier and purchasing tables, immutable receipt/audit history, controlled lifecycle functions, and least-privilege grants; migration 021 supplies a restricted JSONB object-length helper used by the purchasing line validators. Role enforcement is in trusted app server code and repeated for purchasing writes inside PostgreSQL; the actor UUID is still supplied by the trusted app server over the shared application database role.
 
 ## Entity relationship diagram
 
@@ -102,6 +102,83 @@ erDiagram
         text event_type "password_changed or admin_password_reset"
         timestamptz occurred_at
     }
+    APP_USERS ||--o{ SUPPLIERS : creates
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : supplies
+    LOCATIONS ||--o{ PURCHASE_ORDERS : receives_at
+    APP_USERS ||--o{ PURCHASE_ORDERS : creates
+    PURCHASE_ORDERS ||--|{ PURCHASE_ORDER_LINES : contains
+    PRODUCTS ||--o{ PURCHASE_ORDER_LINES : ordered
+    PURCHASE_ORDERS ||--o{ PURCHASE_RECEIPTS : has
+    APP_USERS ||--o{ PURCHASE_RECEIPTS : records
+    PURCHASE_RECEIPTS ||--|{ PURCHASE_RECEIPT_LINES : contains
+    PURCHASE_ORDER_LINES ||--o{ PURCHASE_RECEIPT_LINES : fulfills
+    STOCK_MOVEMENTS ||--o| PURCHASE_RECEIPT_LINES : records_stock_as
+    APP_USERS ||--o{ PURCHASING_AUDIT_LOG : acts
+
+    SUPPLIERS {
+        bigint id PK
+        text name UK "case-insensitive normalized"
+        text contact_name "nullable"
+        text email "nullable"
+        text phone "nullable"
+        text notes "nullable"
+        boolean active
+        uuid created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    PURCHASE_ORDERS {
+        bigint id PK
+        text order_number UK
+        bigint supplier_id FK
+        bigint location_id FK
+        text supplier_name_snapshot "nullable until submit"
+        text location_name_snapshot "nullable until submit"
+        text status
+        date expected_delivery_on "nullable"
+        text notes "nullable"
+        uuid created_by FK
+        timestamptz submitted_at "nullable"
+        timestamptz cancelled_at "nullable"
+        text cancel_reason "nullable"
+    }
+    PURCHASE_ORDER_LINES {
+        bigint id PK
+        bigint purchase_order_id FK
+        bigint product_id FK
+        text sku_snapshot
+        text product_name_snapshot
+        bigint ordered_quantity
+        timestamptz created_at
+    }
+    PURCHASE_RECEIPTS {
+        bigint id PK
+        bigint purchase_order_id FK
+        uuid request_id UK
+        uuid actor_id FK
+        timestamptz received_at
+        text reference "nullable"
+        text note "nullable"
+    }
+    PURCHASE_RECEIPT_LINES {
+        bigint id PK
+        bigint purchase_order_id FK
+        bigint receipt_id FK
+        bigint purchase_order_line_id FK
+        bigint quantity
+        bigint stock_movement_id FK, UK
+    }
+    PURCHASING_AUDIT_LOG {
+        bigint id PK
+        text entity_type
+        bigint entity_id "polymorphic, not FK"
+        text action
+        uuid actor_id FK
+        uuid request_id "nullable"
+        jsonb before_data "nullable, minimized"
+        jsonb after_data "nullable, minimized"
+        timestamptz occurred_at
+    }
 ```
 
 `INVENTORY_AUDIT_LOG` is intentionally not drawn with a normal entity foreign-key connector for the entity itself: it stores a polymorphic `(entity_type, entity_id)` reference for product and stock-movement audit events, which PostgreSQL does not enforce as a single foreign key. Actor IDs are real nullable foreign keys to `APP_USERS`; they stay NULL on pre-authentication seed rows and point to the signed-in app user for new writes.
@@ -109,6 +186,8 @@ erDiagram
 `AUTH_LOGIN_RATE_LIMITS` is intentionally unconnected to the business entities: its key is an HMAC digest of a normalized email/client pair or client address. It retains no raw email/IP and uses a time window; expired buckets are pruned in bounded batches during later sign-in attempts.
 
 `APP_SECURITY_EVENTS` keeps the subject UUID, nullable initiating actor UUID, event type, and timestamp for password changes and administrator resets. It deliberately has no account foreign keys, so deleting either account does not erase security history; it stores no email, password, or password hash. A restricted database trigger writes the event and revokes all sessions as part of the password update. For administrator resets, the trusted application route supplies the actor from the verified server session; this attribution is application-enforced rather than independently authenticated by PostgreSQL. The application runtime role cannot read or write this table directly.
+
+Purchasing is normalized across supplier, order header, order lines, receipt header, and receipt lines. Ordered and received quantities are integers; receipt progress is derived from immutable receipt-line facts instead of maintaining a second writable received counter. A composite foreign key ensures each received line belongs to the same order as its receipt. Each receipt line links to exactly one stock movement, so the movement ledger remains the source for location balances. Submitted headers and product labels are snapshotted to preserve what staff saw at submission; draft order lines can be rewritten only through the audited save function. Supplier deactivation is soft and does not break history. The purchasing audit log uses minimized before/after JSON and a polymorphic entity reference; its `entity_id` is not a foreign key. Snapshots intentionally omit supplier contact details and free-form notes so they are not duplicated into permanent audit history. Receipt rows, receipt lines, and purchasing audit rows reject ordinary mutation and truncation.
 
 ## Tables and keys
 
@@ -127,8 +206,33 @@ erDiagram
 | `app_sessions` | Hashed opaque login token with user and expiry. | UUID primary key; user foreign key; token hash unique; raw cookie token is never persisted. |
 | `auth_login_rate_limits` | Short-lived attempt counters keyed by HMAC digests for email/client and client scopes. | Digest bucket key is the primary key; no raw identity or IP address is stored; runtime can only call the narrow security-definer functions. |
 | `app_security_events` | Append-only record of password changes and administrator resets, with subject and initiating actor UUIDs. | Identity primary key; event type constraint; deliberately has no account foreign keys so history survives account removal; runtime has no direct table access. |
+| `suppliers` | Reusable retail supplier contact details and soft-active status. | Identity primary key; case-insensitive unique normalized name; creator foreign key; constrained optional contact fields; inactive suppliers remain readable through existing orders. |
+| `purchase_orders` | Supplier and destination header, status, optional expected date/notes, creator, and submission/cancellation timestamps. | Identity primary key; unique generated PO number; supplier/location/creator foreign keys; lifecycle and submitted-snapshot constraints; no costs or currency. |
+| `purchase_order_lines` | Product and positive ordered whole-unit quantity, plus SKU/name snapshots. | Identity primary key; order/product foreign keys; each product once per order; composite `(purchase_order_id,id)` key supports same-order receipt-line references; line writes guarded to drafts. |
+| `purchase_receipts` | One receipt request against an order, with actor, timestamp, and optional delivery reference/note. | Identity primary key; order/actor foreign keys; globally unique request UUID for exact retries; append-only after insert. |
+| `purchase_receipt_lines` | Received positive quantity for one order line, with its stock movement identity. | Identity primary key; composite foreign keys bind receipt and line to the same order; one line per order line per receipt; stock movement unique foreign key; append-only. |
+| `purchasing_audit_log` | Minimized append-only supplier, order, and receipt audit events. | Identity primary key; actor foreign key; polymorphic entity ID is not a foreign key; before/after JSON excludes contact values and freeform notes. |
 
 `stock_movements.created_at` is retained from the initial schema; `occurred_at` was added for the effective event time. New movements set both when written through the database function. Existing rows receive a default `occurred_at` during migration 002.
+
+## Supplier and purchase-order transaction flow
+
+```mermaid
+flowchart TD
+    A[Manager saves supplier and draft order] --> B[Validate active supplier, location, distinct active product lines]
+    B --> C[Write order and lines through audited security-definer function]
+    C --> D[Submit draft; lock order and snapshot supplier, location, SKU and product names]
+    D --> E[Clerk submits receipt with request UUID and positive quantities]
+    E --> F[Lock order row; compare idempotency key; validate open order and remaining quantities]
+    F --> G[Insert receipt and call record_stock_movement per line]
+    G --> H{All database writes succeed?}
+    H -- No --> I[Rollback receipt, movements, audit and status together]
+    H -- Yes --> J[Append receipt links and audit; set partial or completed status]
+```
+
+Migration 019 creates the normalized purchasing records, constraints, indexes, and append-only guards. Migration 020 adds controlled supplier/order/receipt routines and grants the runtime role read access plus function execution only. The function owner receives narrow reads on user role/status and locations, precise table/sequence grants, and calls the existing stock-movement function so balance updates, movement attribution, and receipt records commit together. Receipt retries with the same request UUID return the original receipt only when actor, order, note/reference, and sorted line payload all match. Reusing that UUID for different details is rejected. Concurrent receipts serialize by locking the parent order before evaluating remaining quantities. Cancelling a draft, submitted, or partially received order records a reason and preserves all receipt facts; only the remainder is closed. Inactive products cannot be received.
+
+Purchasing application capabilities are `suppliers:read`, `suppliers:write`, `suppliers:manage`, `purchase_orders:read`, `purchase_orders:write`, and `purchase_orders:receive`. All roles can read; manager/admin can write suppliers and orders; only admin can deactivate suppliers; clerk/manager/admin can receive order lines. Each server page/action checks permission, and database purchasing functions independently verify the supplied actor's current active role. This does not make the human user a distinct PostgreSQL principal: the app still supplies the actor UUID over `inventory_runtime`.
 
 ## Normalization and the balance projection
 
@@ -192,7 +296,7 @@ To apply or upgrade the local development database from PowerShell, run `scripts
 - Login verifies the password and creates its session while holding an account-row lock. An administrator reset locks actor and target accounts in stable order, updates the password hash and forced-change flag, and relies on the trigger to write the audit event and revoke sessions in the same transaction.
 - A newly created or admin-reset account must replace its temporary password through `/account/security` before the authorization helpers allow protected pages or actions. Email recovery is not implemented.
 - `/stock` implements selected-location active-product balances, reorder attention, stock receipt, sellable returns, manual sale deductions, and manager/administrator count adjustments. `/activity` implements location/type/text filters and a newest-first list capped at 200 movements.
-- Migrations through 018 and the database connection are verified locally. The expanded rollback-only stock and auth checks passed locally for returns, adjustments, login throttling, clerk/manager boundaries, audit writes, and session revocation. The owner has confirmed administrator sign-in and role test accounts; the local backup was restored and verified separately. The activity page supports actor and inclusive UTC date filters. GitHub Actions results for release `v1.4.0` are recorded in [the setup status](../SETUP_STATUS.md); administrator-reset CI coverage passed on main commit `eba62e7` in [run 38640141612](https://github.com/sysinfo7/Inventory_System/actions/runs/38640141612); release-tag verification is pending. A second off-checkout backup copy and production deployment review remain future work.
+- Migrations through 021, database checks, and rollback-only stock, purchasing, and authentication verifiers passed locally. The signed-in admin walkthrough completed PO-00000007 with two receipts and confirmed linked movement and audit history at Demo Outlet. `npm audit --omit=dev` found zero production dependency vulnerabilities. The purchasing CI run and feature screenshots remain pending; the current Windows production build attempt compiled with Webpack but was blocked by `EPERM` writing a route output under `.next`. The expanded rollback-only stock and auth checks passed locally for returns, adjustments, login throttling, clerk/manager boundaries, audit writes, and session revocation. The local backup was restored and verified separately. The activity page supports actor and inclusive UTC date filters. Administrator-reset CI coverage passed on main commit `eba62e7` in [run 38640141612](https://github.com/sysinfo7/Inventory_System/actions/runs/38640141612); see [setup status](../SETUP_STATUS.md) for prior release evidence and remaining checks. A second off-checkout backup copy and production deployment review remain future work.
 - No sample production or customer information is included. Use fictional data in demos.
 
 Update this document whenever a migration changes a table, column, key, relationship, constraint, index, database function, trigger, role grant, or implementation status. Keep the diagram and relationship descriptions aligned with the SQL files, and clearly separate implemented behavior from planned application features. It is also linked from the README and database operations guide.
