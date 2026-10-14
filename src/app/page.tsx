@@ -49,7 +49,7 @@ export default function Home() {
         <div><span className="principle-icon" aria-hidden="true">↺</span><span><strong>Traceable changes</strong><small>Product edits join an audit trail</small></span></div>
         <div><span className="principle-icon" aria-hidden="true">◇</span><span><strong>Built with care</strong><small>Secure patterns and clear limits</small></span></div>
       </section>
-      <p className="home-disclaimer">Sign in with an inventory account to use the catalog, stock, and activity tools.</p>
+      <p className="home-disclaimer">The catalog, stock, and activity tools are available to signed-in inventory users.</p>
     </main>
   );
 }

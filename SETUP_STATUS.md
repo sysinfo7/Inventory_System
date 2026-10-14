@@ -31,7 +31,7 @@
 - The same insight was visible on `/permissions` before request-specific content was placed behind its own Suspense boundary; the live page rendered without the insight afterward. `/users` also rendered normally after its boundary was added. GitHub `main` was confirmed at `c847a9e` after the owner pushed.
 - The local Users page revealed temporary accounts from earlier authentication checks; these are isolated by the `auth-check-…@inventory-demo.invalid` naming rule. The owner later reported cleaning the generated accounts. If needed, `npm run auth:cleanup-checks` removes only that exact test-account pattern using the local database administrator URL.
 - The running app displayed eight movements across both locations; the Demo Store activity filter returned four rows. Atlas ran `npm run db:verify-stock`; receipt, sale, retry, oversell, and audit checks passed, and test rows were rolled back.
-- A production build was attempted again but Turbopack's CSS worker child process exited before connecting to its parent. The production build passed on GitHub Actions; the Windows-specific build issue remains unresolved. No local concurrent-deduction run or screenshot capture has been completed.
+- A production build was attempted again but Turbopack's CSS worker child process exited before connecting to its parent. The production build passed on GitHub Actions; the Windows-specific build issue remains unresolved. Screenshots of the overview, catalog, product form and validation, stock balances and operations, activity history, and permissions are saved in `docs/screenshots/` and embedded in the user manual. No local concurrent-deduction run has been completed.
 - GitHub Actions run #10 passed all workflow steps for commit `835c6b6`, including migrations, least-privilege role provisioning, stock workflow checks, competing deductions, production build startup, and authentication/permission smoke tests. See [the run details](https://github.com/sysinfo7/Inventory_System/actions/runs/38481389156).
 - The CI-only concurrency verifier submits two overlapping four-unit sales against a five-unit test balance and expects one accepted movement, one insufficient-stock rejection, and a final balance of one. It leaves its uniquely named fixture only in GitHub Actions' disposable database; it refuses to run unless `CI=true`.
 - `npm run db:verify-stock` passed after migration 009 and confirms the movement semantics; its test writes run in a transaction that rolls back. It checks blank actor for its synthetic database-level call; application actions now pass the authenticated user UUID.
@@ -41,7 +41,7 @@
 
 ## Owner's next local steps
 
-1. Capture the remaining user-manual screenshots from the signed-in app and save them in `docs/screenshots/`.
+1. Optionally capture a narrow mobile viewport and a successful stock-write confirmation for the user manual.
 2. Keep the verified local database dump in the ignored `backups/` directory, and store a second copy in a secure location outside this checkout.
 3. Consider a clean reset rehearsal only when you are ready to discard and recreate the local demo database.
 

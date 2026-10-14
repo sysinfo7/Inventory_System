@@ -126,14 +126,4 @@ GitHub Actions run #10 passed the CI-only competing-deduction check against a di
 
 ## Screenshot evidence
 
-Screenshots are pending. The local app is now reachable with fictional sample data. Capture these views from the running app:
-
-1. `docs/screenshots/home-desktop.png` — current project-status landing page at desktop width.
-2. `docs/screenshots/home-mobile.png` — current landing page at a narrow mobile viewport.
-3. `docs/screenshots/catalog.png` — active catalog list with fictional products.
-4. `docs/screenshots/product-form.png` — add/edit form and clear validation state.
-5. `docs/screenshots/stock-on-hand.png` — selected location, active product balances, and reorder attention.
-6. `docs/screenshots/stock-movement.png` — receiving and manual sale-deduction forms, including a real success result.
-7. `docs/screenshots/activity.png` — filters and signed movement rows with fictional data.
-
-Use fictional data. Do not use mockups as screenshots or expose credentials in a capture.
+The user manual embeds current screenshots captured from the running local app, including overview, catalog, product validation, stock operations, activity history, and the permissions matrix. A narrow mobile viewport and a successful stock-write confirmation remain uncaptured. See [the user manual](USER_MANUAL.md) for the images and the exact coverage notes. All displayed business records are fictional; captures must not expose credentials or user email addresses.

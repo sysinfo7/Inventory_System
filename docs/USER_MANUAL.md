@@ -109,18 +109,32 @@ flowchart TD
 
 The expanded local check passed for returns, both adjustment directions, idempotent retries, zero and oversell rejection, and audit rows; it rolled back its test transaction. The sample seed data starts with eight movements across both locations (four receiving entries and four sale deductions); filtering activity to Demo Store initially returns four rows. Application-created movements include the signed-in actor. The expanded auth verifier also passed for clerk return access and manager-only adjustment visibility. GitHub Actions run #10 passed the earlier hosted checks; a fresh CI run is needed for these additions. [View run #10](https://github.com/sysinfo7/Inventory_System/actions/runs/38481389156).
 
-## Screenshots still needed
+## Screenshots
 
-Repository screenshots have not yet been saved. The local app is now reachable with fictional sample data and migrations through 010 applied; capture these views from the running app:
+These captures show the running local application with fictional demo data. They are evidence of the interface, not proof of a production deployment. No passwords, email addresses, or user-management records are shown.
 
-| File | Required capture |
-| --- | --- |
-| `docs/screenshots/home-desktop.png` | Home page at desktop width. |
-| `docs/screenshots/home-mobile.png` | Home page at a narrow mobile viewport. |
-| `docs/screenshots/catalog.png` | Product list with fictional records. |
-| `docs/screenshots/product-form.png` | Add/edit form and a real validation result. |
-| `docs/screenshots/stock-on-hand.png` | Selected location, active product balances, and reorder attention. |
-| `docs/screenshots/stock-movement.png` | Receive form, manual sale deduction, and a real success or validation result. |
-| `docs/screenshots/activity.png` | Filters and signed movement rows, with fictional data. |
+### Overview and catalog
 
-Never show credentials in screenshots. Do not substitute generated images or mockups for captures of the running application.
+![Signed-in overview](screenshots/home-desktop.jpg)
+
+![Product catalog](screenshots/catalog.jpg)
+
+![Add-product form](screenshots/product-form.jpg)
+
+![Required-field validation on the product form](screenshots/product-form-validation.jpg)
+
+### Stock and audit history
+
+![Stock on hand at Demo Outlet](screenshots/stock-on-hand.jpg)
+
+![Receiving and customer-return forms](screenshots/stock-movement.jpg)
+
+![Sale deduction and manager inventory adjustment forms](screenshots/stock-adjustment.jpg)
+
+![Filtered inventory movement history](screenshots/activity.jpg)
+
+### Permissions
+
+![Role and permission matrix](screenshots/permissions.jpg)
+
+The current evidence set does not include a narrow mobile viewport or a successful stock-write confirmation screen. The database workflow verifiers cover stock writes and audit events; no permanent stock transaction was added solely for a screenshot. Never include credentials or account email addresses in future captures.
