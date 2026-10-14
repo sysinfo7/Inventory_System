@@ -43,6 +43,7 @@ The current migration files are:
 | `db/012_revoke_sessions_on_access_change.sql` | Adds a trigger to revoke sessions after role changes or account deactivation. |
 | `db/013_remove_unverified_session_trigger.sql` | Removes the initial trigger version after integration testing identified a missing column-level privilege. |
 | `db/014_revoke_sessions_on_access_change.sql` | Installs the verified trigger with only `user_id` column reads and session deletion granted to its restricted owner. |
+| `db/015_activity_filter_indexes.sql` | Adds indexes for newest-first activity history and actor/date filtering. |
 
 For an existing checkout/database, the local upgrade wrapper starts PostgreSQL if needed, applies any unapplied migrations, and checks the connection:
 
@@ -50,7 +51,7 @@ For an existing checkout/database, the local upgrade wrapper starts PostgreSQL i
 .\scripts\setup-database.ps1
 ```
 
-This applies pending numbered migrations and checks the connection. Migrations through 014 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
+This applies pending numbered migrations and checks the connection. Migrations through 015 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
 
 ## Provision the application login
 
@@ -158,8 +159,8 @@ npm run db:migrate
 npm run db:check
 ```
 
-`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001–011. Those migrations recreate both demo locations, three fictional products, and eight initial movements, plus the login-throttle table. Run `npm run db:provision-app` and `npm run auth:bootstrap` afterward to recreate the local app login and administrator. The sample records are fictional and their history starts over on reset.
+`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001–015. Those migrations recreate both demo locations, three fictional products, eight initial movements, authentication and session tables, login-throttle storage, session-revocation behavior, and activity-filter indexes. Run `npm run db:provision-app` and `npm run auth:bootstrap` afterward to recreate the local app login and administrator. The sample records are fictional and their history starts over on reset.
 
 ## Verification status
 
-Migrations through 014 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, the expanded `npm run db:verify-stock`, and `npm run auth:verify` passed; auth verification covers viewer, clerk, manager, login throttling, response headers, actor attribution, and session revocation after role/deactivation changes. GitHub Actions passed all checks for `v1.1.0` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38494697769) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38494697537). A local custom-format backup was created and restored into the separate `inventory_restore_check` database. Verification found 10 migration records, 3 products, 2 locations, 8 stock movements, 11 audit events, and 4 application users; the temporary restore database was then removed. The verified local dump remains in the ignored `backups/` directory. Clean reset remains unverified. The production build still fails under this Windows Turbopack environment because its CSS worker exits before connecting. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.
+Migrations through 015 are applied to the local database. `npm run db:check`, `npm run db:provision-app`, the expanded `npm run db:verify-stock`, and `npm run auth:verify` passed; auth verification covers viewer, clerk, manager, login throttling, response headers, actor attribution, and session revocation after role/deactivation changes. GitHub Actions passed all checks for `v1.3.1` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38501795878) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38501795851). A local custom-format backup created on 2026-10-13 was restored into the separate `inventory_restore_check` database. At that time it contained 10 migration records, 3 products, 2 locations, 8 stock movements, 11 audit events, and 4 application users; the temporary restore database was then removed. The verified local dump remains in the ignored `backups/` directory. Clean reset remains unverified. The production build still fails under this Windows Turbopack environment because its CSS worker exits before connecting. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.
