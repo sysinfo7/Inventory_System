@@ -70,7 +70,7 @@ npm run purchasing:verify
 npm run auth:verify
 ```
 
-GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock and purchasing workflow checks, competing-deduction checks, and end-to-end authentication and permission checks against the built app. All checks passed for [main commit aa5fd6f](https://github.com/sysinfo7/Inventory_System/actions/runs/38650403985); the matching release-tag check will run after `v1.6.0` is pushed.
+GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock and purchasing workflow checks, competing-deduction checks, and end-to-end authentication and permission checks against the built app. All checks passed for [main commit aa5fd6f](https://github.com/sysinfo7/Inventory_System/actions/runs/38650403985), [documentation commit 4cc752b](https://github.com/sysinfo7/Inventory_System/actions/runs/38652134661), and [release tag v1.6.0](https://github.com/sysinfo7/Inventory_System/actions/runs/38652134590).
 
 ## Security boundary
 
