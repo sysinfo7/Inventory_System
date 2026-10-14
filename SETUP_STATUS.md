@@ -5,7 +5,7 @@
 - The repository uses Node.js 24, npm, Next.js 16.4, TypeScript, PostgreSQL 17, Docker Compose, and `pg`.
 - The local PostgreSQL service is configured on loopback port `5433`; the development web server binds to `127.0.0.1`.
 - Database migrations 001-015 are applied locally. `npm run db:check`, `npm run db:provision-app`, and repeat `npm run db:migrate` passed after the authentication changes.
-- Migrations 004 and 006 seed `Demo Store` and `Demo Outlet`; migration 005 prevents stock movements for inactive/missing products; migration 007 seeds three fictional products and eight audited movements using the database write functions. The current local database has one additional user-guide receipt at Demo Outlet; a clean reset returns to the eight seeded movements.
+- Migrations 004 and 006 seed `Demo Store` and `Demo Outlet`; migration 005 prevents stock movements for inactive/missing products; migration 007 seeds three fictional products and eight audited movements using the database write functions. The user manual screenshots show a one-off guide receipt that was present before the October 14 clean reset; the current database contains only the eight seeded movements.
 
 ## Implemented application behavior
 
@@ -49,10 +49,11 @@
 - Release `v1.3.0` adds recorded-by and inclusive UTC date filters. Migration 015 applied locally; live browser checks returned the one attributed receipt for its actor/date, eight seed rows for the legacy filter, and a clear warning for reversed dates. `db:check`, rollback-only stock verification, auth verification, lint, typecheck, and `git diff --check` passed locally. The initial CI run exposed that an immutable test movement correctly prevents deleting its actor. Release `v1.3.1` retains that actor only in GitHub's disposable CI database; local verification continues deleting its temporary account. All workflow checks passed for both [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38501795878) and [tag `v1.3.1`](https://github.com/sysinfo7/Inventory_System/actions/runs/38501795851).
 - The local administrator account has been created and the owner has confirmed signing in. The bootstrap script requires each operator to choose their own private password.
 - Release `v1.3.2` updates Next.js and `eslint-config-next` to 16.4.1. `npm run lint`, `npm run typecheck`, and `npm audit --omit=dev` pass. Full `npm audit` still reports the unpatched development-only `braces@3.0.3` advisory; the production dependency tree is clear. Local Windows Turbopack build could not create a junction under `.next` due to sandbox access denial, but GitHub Actions passed the production build and all workflow steps for [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38618177582) and [tag `v1.3.2`](https://github.com/sysinfo7/Inventory_System/actions/runs/38618177238).
+- Clean-reset rehearsal completed on 2026-10-14. The fresh 55,002-byte backup at `backups/inventory-20261014-145320.dump` restored into a separate database with 15 migrations, 3 products, 2 locations, 9 movements, 12 audit events, and 4 users; the temporary restore database was dropped before `docker compose down -v`. The setup script reapplied migrations 001–015, the runtime role and administrator were recreated, and owner-provided output confirms stock and authentication/permission verification passed. The seeded database now has eight movements; the separate guide-receipt example was removed as expected.
 
 ## Owner's next local steps
 
-1. Keep the verified local database dump in the ignored `backups/` directory; a second copy can be added when you choose an external location.
-2. Consider a clean reset rehearsal only when you are ready to discard and recreate the local demo database.
+1. Keep the newly verified dump in the ignored `backups/` directory; an off-checkout copy can be added when you choose a destination.
+2. Sign in again at `http://127.0.0.1:3000/login`; the reset recreated the database and invalidated all prior sessions.
 
 Keep the app local and use fictional data; persistent account lockout, password recovery, and production security configuration remain outstanding.
