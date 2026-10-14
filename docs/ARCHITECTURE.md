@@ -8,7 +8,7 @@ The stack is TypeScript, React, Next.js, Tailwind CSS, PostgreSQL, and the `pg` 
 
 ## Data model
 
-The schema separates catalog entities, movement history, current stock, and audit events. Products and locations each have their own identities; movements reference both. `inventory_stock` is a cached balance projection keyed by product and location. The `stock_balances` view reads this projection. New stock changes must go through `record_stock_movement`, which locks the corresponding balance row, checks that the result remains nonnegative, updates the projection, and inserts the movement within the same database statement transaction.
+The schema separates catalog entities, movement history, current stock, audit events, and temporary login-throttle buckets. Products and locations each have their own identities; movements reference both. `inventory_stock` is a cached balance projection keyed by product and location. The `stock_balances` view reads this projection. New stock changes must go through `record_stock_movement`, which locks the corresponding balance row, checks that the result remains nonnegative, updates the projection, and inserts the movement within the same database statement transaction.
 
 See [EMPLOYER_DATABASE_DESIGN.md](EMPLOYER_DATABASE_DESIGN.md) for the full field/key diagram, normalization rationale, and maintained portfolio explanation of the relationships.
 
@@ -53,6 +53,11 @@ erDiagram
         bigint location_id PK, FK
         bigint quantity
         timestamptz updated_at
+    }
+    AUTH_LOGIN_RATE_LIMITS {
+        text bucket_key PK
+        integer attempt_count
+        timestamptz window_started_at
     }
 ```
 
@@ -116,9 +121,9 @@ record_stock_movement(product, location, delta, type, reason, actor?, request?, 
 
 ## Database role boundary and limits
 
-Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migrations 003 and 009 grant the controlled product-write function, not direct catalog table writes. Migrations 008–010 add app users, opaque hashed sessions, and actor foreign keys. Four app roles are enforced by server-side page/action checks; an Administrator can create, activate, and deactivate users. The `inventory_runtime` login is separate from project AI agents and receives no identities from them. The local database has migrations through 010 applied and the connection check passed.
+Migration 002 creates `inventory_app` as `NOLOGIN` and grants it limited catalog/history reads and stock-function execution. Migrations 003 and 009 grant the controlled product-write function, not direct catalog table writes. Migrations 008–010 add app users, opaque hashed sessions, and actor foreign keys. Migration 011 adds throttled-login functions over HMAC digests; the application role cannot query the backing table. Four app roles are enforced by server-side page/action checks; an Administrator can create, activate, and deactivate users. The `inventory_runtime` login is separate from project AI agents and receives no identities from them. The local database has migrations through 011 applied and the connection check passed.
 
-The security-definer functions run with `inventory_function_owner` privileges and fix their `search_path` to `pg_catalog, public, pg_temp`, with the temporary schema last. Database-backed sessions authenticate app users and server-side permission checks gate pages and actions. The Administrator can create/deactivate accounts; role changes take effect on the next request because the app resolves the role from the database. Clerks can receive stock, add sellable customer returns, and record sale deductions. Only Managers and Administrators can create count adjustments, which require a direction and reason and cannot make stock negative. Global response headers add MIME-sniffing, framing, referrer, and browser-permission protections, hide the framework banner, and are asserted by the auth smoke check. This is a local portfolio implementation, not a claim of production-grade security: database owners/superusers can change functions, triggers, or data. Rate limits, password recovery, CSP/HSTS deployment decisions, and production secrets/TLS/network policy remain future work.
+The security-definer functions run with `inventory_function_owner` privileges and fix their `search_path` to `pg_catalog, public, pg_temp`, with the temporary schema last. Database-backed sessions authenticate app users and server-side permission checks gate pages and actions. The Administrator can create/deactivate accounts; role changes take effect on the next request because the app resolves the role from the database. Clerks can receive stock, add sellable customer returns, and record sale deductions. Only Managers and Administrators can create count adjustments, which require a direction and reason and cannot make stock negative. Login attempts use database-backed expiring HMAC-keyed buckets. Global response headers add MIME-sniffing, framing, referrer, and browser-permission protections, hide the framework banner, and are asserted by the auth smoke check. This is a local portfolio implementation, not a claim of production-grade security: database owners/superusers can change functions, triggers, or data. Account lockout, password recovery, CSP/HSTS deployment decisions, and production secrets/TLS/network policy remain future work.
 
 ## Inventory audit trail and accounting boundary
 

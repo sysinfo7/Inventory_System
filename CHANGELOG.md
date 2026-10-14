@@ -2,7 +2,21 @@
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
-## [1.0.1] - 2026-10-14
+## [1.1.0] - 2026-10-13
+
+### Added
+
+- Add PostgreSQL-backed sign-in throttling: eight attempts per 15 minutes for an email/client pair and 100 per 15 minutes per client.
+- Store HMAC digests instead of raw emails or IP addresses and delete expired throttle buckets in bounded batches.
+- Extend auth verification to check rate-limit behavior and confirm the runtime DB role cannot read the backing table.
+- Update the user manual to describe the implemented return, adjustment, user-management, and sign-in protection workflows.
+
+### Security notes
+
+- By default, local requests share a local client bucket. A deployment behind a trusted proxy may set `AUTH_TRUST_PROXY_HEADERS=true` only when that proxy replaces or sanitizes `X-Forwarded-For`.
+- This is temporary throttling, not a persistent account lockout. Password recovery and production abuse monitoring remain future work.
+
+## [1.0.1] - 2026-10-13
 
 ### Added
 

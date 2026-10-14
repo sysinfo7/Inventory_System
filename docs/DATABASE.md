@@ -39,6 +39,7 @@ The current migration files are:
 | `db/008_authentication_permissions.sql` | Adds application users and revocable hashed-token sessions plus runtime grants. |
 | `db/009_authenticated_audit.sql` | Adds the verified-actor overload of the product save function while preserving migration seeding compatibility. |
 | `db/010_authenticated_actor_foreign_keys.sql` | Enforces that non-null product and movement audit actors reference an application user. |
+| `db/011_authentication_rate_limits.sql` | Adds HMAC-keyed login-throttle buckets and restricted runtime functions for atomic attempt reservation. |
 
 For an existing checkout/database, the local upgrade wrapper starts PostgreSQL if needed, applies any unapplied migrations, and checks the connection:
 
@@ -46,7 +47,7 @@ For an existing checkout/database, the local upgrade wrapper starts PostgreSQL i
 .\scripts\setup-database.ps1
 ```
 
-This applies pending numbered migrations and checks the connection. Migrations through 010 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
+This applies pending numbered migrations and checks the connection. Migrations through 011 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
 
 ## Provision the application login
 
@@ -86,7 +87,17 @@ After migrations are current and `APP_DATABASE_URL` points to the provisioned lo
 npm run db:verify-stock
 ```
 
-The script checks receiving, sale deduction, customer return, positive and negative count adjustments, identical-token retry, conflicting-token rejection, oversell and zero-quantity rejection, inactive-product rejection, the resulting balance, and audit rows for synthetic database-only movements. It creates a temporary product and movement rows inside one explicit transaction and rolls the transaction back on success, so it leaves no test data behind. If an assertion fails, it also attempts rollback before exiting. This expanded version passed locally. GitHub Actions also passed these checks, including the competing-deduction test, for `v1.0.0` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097632) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097851).
+The script checks receiving, sale deduction, customer return, positive and negative count adjustments, identical-token retry, conflicting-token rejection, oversell and zero-quantity rejection, inactive-product rejection, the resulting balance, and audit rows for synthetic database-only movements. It creates a temporary product and movement rows inside one explicit transaction and rolls the transaction back on success, so it leaves no test data behind. If an assertion fails, it also attempts rollback before exiting. This expanded version passed locally. GitHub Actions passed these checks, including the competing-deduction test, for `v1.0.1` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366944) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366449).
+
+## Verify authentication and permissions
+
+After migrations and the app are running locally, execute:
+
+```powershell
+npm run auth:verify
+```
+
+This end-to-end check creates a unique temporary account and verifies sign-in, cookie and response-header protections, read-only/clerk/manager permissions, forbidden writes, logout revocation, repeated-login throttling and its retry interval, actor attribution, and the runtime role's restricted access to the rate-limit table. The temporary account is deleted with `DATABASE_URL`; an expired hashed throttle bucket is cleaned by a later sign-in attempt.
 
 The concurrency script is intentionally CI-only and rejects execution unless `CI=true`. It creates a uniquely named product with five units in the disposable GitHub Actions PostgreSQL service, submits two simultaneous four-unit sales on separate connections, and verifies that one succeeds while the other receives an insufficient-stock error. Its fixture remains in the disposable CI database for the duration of that job.
 
@@ -144,8 +155,8 @@ npm run db:migrate
 npm run db:check
 ```
 
-`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001–010. Those migrations recreate both demo locations, three fictional products, and eight initial movements. Run `npm run db:provision-app` and `npm run auth:bootstrap` afterward to recreate the local app login and administrator. The sample records are fictional and their history starts over on reset.
+`docker compose down -v` deletes the named `inventory_data` volume. It cannot be undone through the normal Compose workflow. Do not run it against data you need. The reset recreates an empty database and reapplies migrations 001–011. Those migrations recreate both demo locations, three fictional products, and eight initial movements, plus the login-throttle table. Run `npm run db:provision-app` and `npm run auth:bootstrap` afterward to recreate the local app login and administrator. The sample records are fictional and their history starts over on reset.
 
 ## Verification status
 
-Migrations through 010 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, the expanded `npm run db:verify-stock`, and `npm run auth:verify` passed; auth verification covered viewer, clerk, and manager permissions. GitHub Actions passed all checks for `v1.0.0` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097632) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097851). A local custom-format backup was created and restored into the separate `inventory_restore_check` database. Verification found 10 migration records, 3 products, 2 locations, 8 stock movements, 11 audit events, and 4 application users; the temporary restore database was then removed. The verified local dump remains in the ignored `backups/` directory. Clean reset remains unverified. The production build still fails under this Windows Turbopack environment because its CSS worker exits before connecting. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.
+Migrations through 011 were applied to the local database. `npm run db:check`, `npm run db:provision-app`, the expanded `npm run db:verify-stock`, and `npm run auth:verify` passed; auth verification covers viewer, clerk, manager, login throttling, response headers, and actor attribution. GitHub Actions passed all checks for `v1.0.1` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366944) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366449). A local custom-format backup was created and restored into the separate `inventory_restore_check` database. Verification found 10 migration records, 3 products, 2 locations, 8 stock movements, 11 audit events, and 4 application users; the temporary restore database was then removed. The verified local dump remains in the ignored `backups/` directory. Clean reset remains unverified. The production build still fails under this Windows Turbopack environment because its CSS worker exits before connecting. Older auth-verification runs may leave temporary accounts because the least-privilege app role cannot delete users; `npm run auth:cleanup-checks` removes only those generated test accounts using the local database administrator URL.

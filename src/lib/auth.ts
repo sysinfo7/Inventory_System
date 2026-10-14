@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -12,6 +12,7 @@ const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
 export type Role = 'admin' | 'manager' | 'clerk' | 'viewer';
 export type Permission = 'catalog:read' | 'catalog:write' | 'stock:read' | 'stock:receive' | 'stock:sale' | 'stock:adjust' | 'activity:read' | 'users:manage';
 export type AuthUser = { id: string; email: string; displayName: string; role: Role };
+export type AuthenticationResult = { user: AuthUser | null; rateLimited: boolean; retryAfterSeconds?: number };
 
 const grants: Record<Role, readonly Permission[]> = {
   admin: ['catalog:read', 'catalog:write', 'stock:read', 'stock:receive', 'stock:sale', 'stock:adjust', 'activity:read', 'users:manage'],
@@ -46,26 +47,51 @@ function tokenDigest(token: string) {
   return createHash('sha256').update(token).digest('hex');
 }
 
-export async function authenticate(email: string, password: string): Promise<AuthUser | null> {
-  if (email.length > 254 || password.length > 1024) return null;
+function loginRateKey(scope: 'email' | 'client', value: string) {
+  // The dedicated random app-DB password supplies a secret HMAC key; raw identifiers never enter the limiter table.
+  const secret = process.env.APP_DATABASE_URL;
+  if (!secret) throw new Error('APP_DATABASE_URL is missing.');
+  return createHmac('sha256', secret).update(`inventory-login-rate-v1\0${scope}\0${value}`).digest('hex');
+}
+
+export async function authenticate(email: string, password: string, clientAddress: string): Promise<AuthenticationResult> {
+  if (email.length > 254 || password.length > 1024) return { user: null, rateLimited: false };
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailDigest = loginRateKey('email', `${normalizedEmail}\0${clientAddress}`);
+  const clientDigest = loginRateKey('client', clientAddress);
+  const pool = getDbPool();
+  const limiter = await pool.query(
+    'SELECT allowed, retry_after_seconds FROM reserve_auth_login_attempt($1, $2)',
+    [emailDigest, clientDigest],
+  );
+  if (!limiter.rows[0].allowed) {
+    return { user: null, rateLimited: true, retryAfterSeconds: Number(limiter.rows[0].retry_after_seconds) };
+  }
+
   const result = await getDbPool().query(`
     SELECT id, email, display_name, password_hash, role
     FROM app_users WHERE lower(email) = lower($1) AND active = true LIMIT 1
-  `, [email.trim()]);
+  `, [normalizedEmail]);
   const user = result.rows[0];
   // Verify a fixed dummy hash on unknown users to reduce email enumeration timing leaks.
   const fallbackHash = 'scrypt$00000000000000000000000000000000$'.concat('00'.repeat(64));
-  if (!(await verifyPassword(password, user?.password_hash ?? fallbackHash)) || !user) return null;
+  if (!(await verifyPassword(password, user?.password_hash ?? fallbackHash)) || !user) {
+    return { user: null, rateLimited: false };
+  }
 
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await getDbPool().query('INSERT INTO app_sessions(user_id, token_hash, expires_at) VALUES ($1::uuid, $2, $3)', [user.id, tokenDigest(token), expiresAt]);
+  await pool.query('SELECT clear_auth_login_email_attempts($1)', [emailDigest]);
+  await pool.query('INSERT INTO app_sessions(user_id, token_hash, expires_at) VALUES ($1::uuid, $2, $3)', [user.id, tokenDigest(token), expiresAt]);
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/',
     expires: expiresAt,
   });
-  return { id: String(user.id), email: user.email, displayName: user.display_name, role: user.role };
+  return {
+    user: { id: String(user.id), email: user.email, displayName: user.display_name, role: user.role },
+    rateLimited: false,
+  };
 }
 
 export async function currentUser(): Promise<AuthUser | null> {

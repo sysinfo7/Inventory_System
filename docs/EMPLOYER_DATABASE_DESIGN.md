@@ -5,9 +5,9 @@
 
 ## Purpose
 
-This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`010`](../db/010_authenticated_actor_foreign_keys.sql); notable files include the product and inventory controls, demo seed, auth/session schema, authenticated audit function, and actor foreign keys. Operational commands are in [`DATABASE.md`](DATABASE.md).
+This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`011`](../db/011_authentication_rate_limits.sql); notable files include the product and inventory controls, demo seed, auth/session schema, authenticated audit function, actor foreign keys, and login-throttle store. Operational commands are in [`DATABASE.md`](DATABASE.md).
 
-The current web application includes catalog, stock, movement activity, authentication, and role-based permissions. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys. Role enforcement is in trusted app server code; PostgreSQL connection roles remain separate.
+The current web application includes catalog, stock, movement activity, authentication, role-based permissions, and database-backed login throttling. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys; migration 011 adds hashed rate-limit buckets. Role enforcement is in trusted app server code; PostgreSQL connection roles remain separate.
 
 ## Entity relationship diagram
 
@@ -89,9 +89,16 @@ erDiagram
         timestamptz expires_at
         timestamptz created_at
     }
+    AUTH_LOGIN_RATE_LIMITS {
+        text bucket_key PK
+        integer attempt_count
+        timestamptz window_started_at
+    }
 ```
 
 `INVENTORY_AUDIT_LOG` is intentionally not drawn with a normal entity foreign-key connector for the entity itself: it stores a polymorphic `(entity_type, entity_id)` reference for product and stock-movement audit events, which PostgreSQL does not enforce as a single foreign key. Actor IDs are real nullable foreign keys to `APP_USERS`; they stay NULL on pre-authentication seed rows and point to the signed-in app user for new writes.
+
+`AUTH_LOGIN_RATE_LIMITS` is intentionally unconnected to the business entities: its key is an HMAC digest of a normalized email/client pair or client address. It retains no raw email/IP and uses a time window; expired buckets are pruned in bounded batches during later sign-in attempts.
 
 ## Tables and keys
 
@@ -108,6 +115,7 @@ erDiagram
 | `schema_migrations` | Migration version, SHA-256 checksum, and application time. | Migration version is the primary key; the runner rejects edits to a migration already recorded as applied. |
 | `app_users` | Application identity, normalized unique email, scrypt password hash, role, and active state. | UUID primary key; email case-insensitively unique; role constrained to the defined role set. |
 | `app_sessions` | Hashed opaque login token with user and expiry. | UUID primary key; user foreign key; token hash unique; raw cookie token is never persisted. |
+| `auth_login_rate_limits` | Short-lived attempt counters keyed by HMAC digests for email/client and client scopes. | Digest bucket key is the primary key; no raw identity or IP address is stored; runtime can only call the narrow security-definer functions. |
 
 `stock_movements.created_at` is retained from the initial schema; `occurred_at` was added for the effective event time. New movements set both when written through the database function. Existing rows receive a default `occurred_at` during migration 002.
 
@@ -169,7 +177,7 @@ To apply or upgrade the local development database from PowerShell, run `scripts
 - Migration 006 ensures both demo locations exist, even when migration 004 skipped `Demo Store` because a location was already configured.
 - Migration 007 seeds three fictional products and eight audited movement entries through the controlled product and stock functions, preserving existing matching rows.
 - `/stock` implements selected-location active-product balances, reorder attention, stock receipt, sellable returns, manual sale deductions, and manager/administrator count adjustments. `/activity` implements location/type/text filters and a newest-first list capped at 200 movements.
-- Migrations through 010 and database connection are verified locally. The expanded rollback-only stock and auth checks passed locally for returns, adjustments, clerk/manager boundaries, and audit writes. The owner has confirmed administrator sign-in and role test accounts; the local backup was restored and verified separately. GitHub Actions passed the production build, auth/permission checks, and CI stock concurrency test for `v1.0.0` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097632) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097851). A second off-checkout backup copy and production deployment review remain future work.
+- Migrations through 011 and database connection are verified locally. The expanded rollback-only stock and auth checks passed locally for returns, adjustments, login throttling, clerk/manager boundaries, and audit writes. The owner has confirmed administrator sign-in and role test accounts; the local backup was restored and verified separately. GitHub Actions passed the production build, auth/permission checks, and CI stock concurrency test for `v1.0.1` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366944) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366449). A second off-checkout backup copy and production deployment review remain future work. `v1.1.0` local verification is complete; CI is pending publication.
 - No sample production or customer information is included. Use fictional data in demos.
 
 Update this document whenever a migration changes a table, column, key, relationship, constraint, index, database function, trigger, role grant, or implementation status. Keep the diagram and relationship descriptions aligned with the SQL files, and clearly separate implemented behavior from planned application features. It is also linked from the README and database operations guide.

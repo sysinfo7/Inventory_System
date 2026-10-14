@@ -15,7 +15,7 @@
 - The stock and product functions use `SECURITY DEFINER` with a restricted `inventory_function_owner` role that has no login and only the required table/sequence grants. Their fixed path is `pg_catalog, public, pg_temp`, with the temporary schema last. Product form writes pass through the validation function and existing audit triggers.
 - `scripts/provision-app-role.mjs` creates or updates a local `inventory_runtime` login, removes elevated role attributes, rejects unexpected memberships, and grants membership only in `inventory_app`. The app uses `APP_DATABASE_URL`; migration tools use the more privileged `DATABASE_URL`.
 
-These are data-integrity controls in the current schema, not proof of a production security posture. Migrations through 010, `inventory_runtime` provisioning, and stock/auth smoke checks passed locally. The migrations do not configure production credentials, a secret manager, TLS, production network policy, deployment role, or access monitoring.
+These are data-integrity controls in the current schema, not proof of a production security posture. Migrations through 011, `inventory_runtime` provisioning, and stock/auth smoke checks passed locally. The migrations do not configure production credentials, a secret manager, TLS, production network policy, deployment role, or access monitoring.
 
 ## Application authentication and permissions
 
@@ -30,7 +30,11 @@ Every inventory page and Server Action checks a permission using the database-re
 | Clerk | View | View, receive, return, deduct sale | View | No |
 | Read-only | View | View | View | No |
 
-Demo-only accounts are created only after explicit local opt-in using `npm run auth:seed-test-users`; generated one-time passwords print in the local terminal and only password hashes are stored. The runtime app login has broad app-operation DB grants, so application roles are enforced in trusted server code. Direct use of the DB credential bypasses app roles. The current database setup is local-only. Account lockout/rate limits, password recovery, invitation flow, session revocation after role change, and self-service password changes remain to be built.
+Demo-only accounts are created only after explicit local opt-in using `npm run auth:seed-test-users`; generated one-time passwords print in the local terminal and only password hashes are stored. The runtime app login has broad app-operation DB grants, so application roles are enforced in trusted server code. Direct use of the DB credential bypasses app roles. The current database setup is local-only.
+
+Migration 011 adds persistent login throttling: at most eight attempts per 15-minute window for an HMAC-keyed normalized email/client pair and 100 per client address. Each attempt is reserved atomically before password hashing; a successful login clears only the email/client bucket. Bucket keys are HMAC digests keyed with the app database connection secret; raw email and IP values are not stored. Expired rows become eligible for deletion after one day and are pruned in bounded batches during subsequent login attempts. The runtime role cannot read or write the limiter table directly; it can execute only the narrow reserve and clear functions. This temporary throttle does not permanently lock an account. Local mode uses one shared `local` client identity. If deployed behind a trusted proxy, set `AUTH_TRUST_PROXY_HEADERS=true` only when the proxy strips caller-supplied values and writes a valid `X-Forwarded-For` address; otherwise requests with an untrusted or missing address are rejected.
+
+Password recovery, invitation flow, persistent account lockout, session revocation after role change, and self-service password changes remain to be built.
 
 Global responses set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a strict-origin referrer policy, a restrictive browser `Permissions-Policy`, disable DNS prefetch, and omit the `X-Powered-By` framework banner. The authentication smoke check asserts the security headers on the credential endpoint. A Content Security Policy and HSTS are not configured: CSP needs a deliberate nonce-compatible Next.js design, and HSTS should only be enabled with a confirmed HTTPS deployment. The current local HTTP app therefore does not claim transport security.
 
@@ -42,11 +46,11 @@ The `inventory_app` role's grants are only one boundary. Database owners and suf
 
 - Do not use the local bootstrap/test-account tooling on non-local databases; scripts enforce a local host or development mode.
 - The app role provisioning is local-only. There are no production credentials, secret manager, credential rotation procedure, TLS configuration, or deployment role ownership model.
-- There is no rate limiting, account lockout, or abuse monitoring. Next.js Server Actions enforce an Origin/Host check for CSRF, but that does not authenticate or authorize a caller.
+- Account lockout and abuse monitoring are not implemented. Login throttling is an app-level control and is not a substitute for a production edge rate limiter. Next.js Server Actions enforce an Origin/Host check for CSRF, but that does not authenticate or authorize a caller.
 - The schema does not implement supplier/customer records, sales/payment processing, full financial accounting, valuation, tax, or regulatory controls.
 - The local setup credentials and database backups are sensitive. Use fictional demo data and keep `.env` and backups out of source control and screenshots.
 
-Before public deployment, add rate limiting and account lockout, review password recovery, ensure role changes revoke existing sessions, configure a secret manager/TLS/network policy, and complete an independent production security review. Review function ownership and grants in the deployed database. Keep migration backups and verify restore/upgrade procedures before changing important data.
+Before public deployment, add an edge-level rate limiter and account lockout policy, review password recovery, ensure role changes revoke existing sessions, configure a secret manager/TLS/network policy, and complete an independent production security review. Review function ownership and grants in the deployed database. Keep migration backups and verify restore/upgrade procedures before changing important data.
 
 ## Inventory history is not financial accounting
 
@@ -54,4 +58,4 @@ Before public deployment, add rate limiting and account lockout, review password
 
 ## Evidence status
 
-Migrations through 010, the local PostgreSQL connection, application-role provisioning, expanded `npm run db:verify-stock`, and `npm run auth:verify` have been verified. The expanded checks passed locally for returns, count adjustments, clerk/manager permission boundaries, and audit attribution. GitHub Actions passed all checks for `v1.0.0` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097632) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097851). The owner has confirmed the real administrator can sign in. The local backup was restored and verified in a separate database; a second off-checkout backup copy and production security review remain outstanding.
+Migrations through 011, the local PostgreSQL connection, application-role provisioning, expanded `npm run db:verify-stock`, and `npm run auth:verify` have been verified. The expanded checks passed locally for returns, count adjustments, clerk/manager permission boundaries, audit attribution, and repeated-login throttling. GitHub Actions passed all checks for `v1.0.1` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366944) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366449). The owner has confirmed the real administrator can sign in. The local backup was restored and verified in a separate database; a second off-checkout backup copy and production security review remain outstanding.

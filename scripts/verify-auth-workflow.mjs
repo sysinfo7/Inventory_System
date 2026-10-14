@@ -29,6 +29,17 @@ async function page(path) {
 }
 
 try {
+  const limiterPrivileges = await pool.query(`
+    SELECT (has_table_privilege(current_user, 'public.auth_login_rate_limits', 'SELECT')
+         OR has_table_privilege(current_user, 'public.auth_login_rate_limits', 'INSERT')
+         OR has_table_privilege(current_user, 'public.auth_login_rate_limits', 'UPDATE')
+         OR has_table_privilege(current_user, 'public.auth_login_rate_limits', 'DELETE')) AS can_access_table,
+           has_function_privilege(current_user, 'public.reserve_auth_login_attempt(text,text)', 'EXECUTE') AS can_reserve,
+           has_function_privilege(current_user, 'public.clear_auth_login_email_attempts(text)', 'EXECUTE') AS can_clear
+  `);
+  assert(!limiterPrivileges.rows[0].can_access_table && limiterPrivileges.rows[0].can_reserve && limiterPrivileges.rows[0].can_clear,
+    'Runtime role has incorrect access to the login rate-limit storage/functions.');
+
   const salt = randomBytes(16);
   const derived = await scrypt(password, salt, 64);
   const passwordHash = `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`;
@@ -93,6 +104,23 @@ try {
   const signedOutHtml = await signedOutProducts.text();
   assert(signedOutHtml.includes('Welcome back.') || signedOutHtml.includes('NEXT_REDIRECT;replace;/login;'), 'Revoked session could still access the product catalog.');
 
+  // Check that repeated failures for one identifier/client pair are throttled before another scrypt check.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const failedLogin = await fetch(new URL('/login/authenticate', appUrl), {
+      method: 'POST', redirect: 'manual',
+      headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email, password: `${password}-wrong` }),
+    });
+    assert(failedLogin.status === 303 && new URL(failedLogin.headers.get('location'), appUrl).searchParams.get('error') === '1', 'Invalid sign-in did not use the generic failure response.');
+  }
+  const limitedLogin = await fetch(new URL('/login/authenticate', appUrl), {
+    method: 'POST', redirect: 'manual',
+    headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ email, password }),
+  });
+  const retryAfter = Number(limitedLogin.headers.get('retry-after'));
+  assert(limitedLogin.status === 303 && new URL(limitedLogin.headers.get('location'), appUrl).searchParams.get('error') === '2' && retryAfter > 0 && retryAfter <= 900, 'Repeated sign-in attempts were not throttled with a retry interval.');
+
   // Verify actor audit attribution using app grants, rolling back all test rows.
   const client = await pool.connect();
   const requestId = randomUUID();
@@ -110,7 +138,7 @@ try {
     throw error;
   } finally { client.release(); }
 
-  console.log('Authentication verified: sign-in, protected cookie, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, session revocation, and actor audit attribution passed.');
+  console.log('Authentication verified: sign-in, protected cookie, response security headers, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, session revocation, login throttling, and actor audit attribution passed.');
 } finally {
   if (cookie) {
     try { await fetch(new URL('/logout', appUrl), { method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie } }); } catch { /* The session row is also removed directly below. */ }

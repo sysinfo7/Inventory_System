@@ -9,7 +9,7 @@ Manage retail products using unique SKUs, names, categories, sale prices, reorde
 | Requirement | Implementation status | Runtime evidence |
 | --- | --- | --- |
 | Search products by name or SKU; add/edit/deactivate products. | Implemented in the local catalog UI and controlled database function. | Owner reported migrations 001–003 and app-role provisioning succeeded. |
-| Receive stock and record a movement with actor attribution. | Implemented on `/stock`; requires permission and writes the verified session actor through `record_stock_movement`. | Migrations through 010 applied locally; rollback-only stock and auth smoke workflows passed. |
+| Receive stock and record a movement with actor attribution. | Implemented on `/stock`; requires permission and writes the verified session actor through `record_stock_movement`. | Migrations through 011 applied locally; rollback-only stock and auth smoke workflows passed. |
 | Record sellable customer returns as positive stock movements. | Implemented on `/stock` using the receiving permission; the reason and verified actor enter the same append-only movement/audit path. | Expanded rollback-only database verification and clerk permission check passed locally and in GitHub Actions for `v1.0.0`. |
 | Correct physical counts with positive or negative adjustments. | Implemented on `/stock`; only managers and administrators receive the `stock:adjust` capability, and the database still rejects a resulting negative balance. | Expanded rollback-only database verification and manager/clerk visibility checks passed locally and in GitHub Actions for `v1.0.0`. |
 | Record a manual sale deduction and reject deductions above current on-hand. | Implemented on `/stock`; positive form quantity becomes a negative movement, and the database function rejects a negative resulting balance. | Rollback-only oversell checks and CI competing-deduction checks passed for `v1.0.0`. |
@@ -23,7 +23,7 @@ Manage retail products using unique SKUs, names, categories, sale prices, reorde
 - The stock page offers receiving, sellable customer returns, count corrections, and **manual sale deductions**. It does not connect to a point-of-sale system, process payments, or create accounting entries.
 - Activity is an inventory quantity history. New application writes record a verified signed-in user; sample seed movements retain NULL actor IDs.
 - Roles Administrator, Manager, Clerk, and Read-only are enforced by server page/action checks. Codex project agents are not application accounts and cannot act as human inventory users.
-- Local development is the only configured deployment. Use fictional demo records and do not expose it to untrusted users until rate limiting, account recovery, and production security controls are reviewed.
+- Local development is the only configured deployment. Use fictional demo records and do not expose it to untrusted users until account recovery and production security controls are reviewed; the app-level login throttle is not a production edge control.
 - Dashboard summary cards, supplier records, purchase orders, and POS integration remain out of current scope.
 
 ## Portfolio evidence

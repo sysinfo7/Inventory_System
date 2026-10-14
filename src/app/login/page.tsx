@@ -19,6 +19,8 @@ async function LoginContent({ searchParams }: Props) {
       <h1 id="login-heading">Welcome back.</h1>
       <p className="page-description">Sign in with your inventory account to continue.</p>
       {params.error === '1' && <p className="form-alert" role="alert">Email or password is incorrect, or this account is inactive.</p>}
+      {params.error === '2' && <p className="form-alert" role="alert">Too many sign-in attempts. Wait before trying again.</p>}
+      {params.error === '3' && <p className="form-alert" role="alert">Sign-in is temporarily unavailable. Please try again later.</p>}
       <form action="/login/authenticate" method="post" className="auth-form">
         <label className="form-field"><span>Email address</span><input name="email" type="email" autoComplete="username" maxLength={254} required /></label>
         <label className="form-field"><span>Password</span><input name="password" type="password" autoComplete="current-password" maxLength={1024} required /></label>

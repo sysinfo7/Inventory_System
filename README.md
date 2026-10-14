@@ -2,19 +2,19 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.0.1** — a patch release with browser security hardening.
+**Project version: 1.1.0** — adds persistent login throttling and browser security hardening.
 
 ## Versioning
 
-The project follows Semantic Versioning (`MAJOR.MINOR.PATCH`): increment MAJOR for incompatible changes, MINOR for backward-compatible features, and PATCH for backward-compatible fixes. Changes made before the first stable release use `0.x.y`; `1.0.0` marks the initial feature-complete portfolio release. Keep `package.json` and `package-lock.json` versions in sync, and create a Git tag such as `v1.0.0` when publishing each release. Commit hashes identify source revisions but are not release numbers.
+The project follows Semantic Versioning (`MAJOR.MINOR.PATCH`): increment MAJOR for incompatible changes, MINOR for backward-compatible features, and PATCH for backward-compatible fixes. Changes made before the first stable release use `0.x.y`; `1.0.0` marks the initial feature-complete portfolio release. Keep `package.json` and `package-lock.json` versions in sync, and create a matching Git tag such as `v1.2.3` when publishing each release. Commit hashes identify source revisions but are not release numbers.
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Current status
 
-The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in, role-based permissions, and administrator user management. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
+The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in with persistent rate limiting, role-based permissions, and administrator user management. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys. The expanded rollback-only stock/auth checks passed locally, including returns, count corrections, and role visibility. GitHub Actions passed for the `v1.0.0` release commit on both `main` and the tag. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling. The expanded rollback-only stock/auth checks passed locally, including returns, count corrections, role visibility, and sign-in throttling. GitHub Actions passed through `v1.0.1`; CI for `v1.1.0` will run when it is pushed. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -66,14 +66,14 @@ npm run db:verify-stock
 npm run auth:verify
 ```
 
-GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. These checks passed for `v1.0.0` on [the main branch](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097632) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097851).
+GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. The current `v1.0.1` state passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366944) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38492366449). CI for the pending `v1.1.0` changes will run after push.
 
 ## Security boundary
 
-The local PostgreSQL port and Next.js development server bind to loopback. The app uses a dedicated `inventory_runtime` login that inherits app-operation grants from the `inventory_app` group; app user permissions are enforced server-side. AI collaboration agents are project contributors, not inventory accounts, and cannot sign in or act as users. Account lockout, password recovery, and production deployment controls remain future work. See [SECURITY.md](docs/SECURITY.md).
+The local PostgreSQL port and Next.js development server bind to loopback. The app uses a dedicated `inventory_runtime` login that inherits app-operation grants from the `inventory_app` group; app user permissions are enforced server-side. AI collaboration agents are project contributors, not inventory accounts, and cannot sign in or act as users. Persistent account lockout, password recovery, and production deployment controls remain future work. See [SECURITY.md](docs/SECURITY.md).
 
 ## Planned first features
 
-1. Password recovery and account rate limiting; role changes already take effect on each next request, while full session-revocation policy remains future work.
-2. Backup/restore rehearsal and a documented production security review.
+1. Password recovery, account lockout policy, and full session-revocation policy after role changes.
+2. A production security review and deployment configuration; keep the verified backup local unless a secure off-checkout destination is chosen.
 3. Purchase orders, suppliers, and deployment work after the local portfolio scope is complete.
