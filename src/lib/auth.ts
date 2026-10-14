@@ -35,12 +35,107 @@ export async function hashPassword(password: string) {
   return `scrypt$${salt.toString('hex')}$${key.toString('hex')}`;
 }
 
-async function verifyPassword(password: string, encoded: string) {
+export async function verifyPassword(password: string, encoded: string) {
   const [algorithm, saltHex, keyHex, extra] = encoded.split('$');
   if (algorithm !== 'scrypt' || !saltHex || !keyHex || extra !== undefined || !/^[\da-f]{32}$/.test(saltHex) || !/^[\da-f]{128}$/.test(keyHex)) return false;
   const expected = Buffer.from(keyHex, 'hex');
   const actual = await scrypt(password, Buffer.from(saltHex, 'hex'), expected.length) as Buffer;
   return timingSafeEqual(actual, expected);
+}
+
+export type PasswordChangeResult = 'changed' | 'incorrect' | 'same' | 'session';
+
+export type PasswordAttemptReservation = { authenticated: false } | { authenticated: true; allowed: boolean; retryAfterSeconds: number };
+
+export async function reserveCurrentPasswordAttempt(clientAddress: string): Promise<PasswordAttemptReservation> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return { authenticated: false };
+
+  const pool = getDbPool();
+  const account = await pool.query(`
+    SELECT u.email
+    FROM app_sessions AS s JOIN app_users AS u ON u.id = s.user_id
+    WHERE s.token_hash = $1 AND s.expires_at > now() AND u.active = true
+  `, [tokenDigest(token)]);
+  if (!account.rowCount) return { authenticated: false };
+
+  const emailKey = loginRateKey('email', `${String(account.rows[0].email).trim().toLowerCase()}\0${clientAddress}`);
+  const clientKey = loginRateKey('client', clientAddress);
+  const result = await pool.query(
+    'SELECT allowed, retry_after_seconds FROM reserve_auth_login_attempt($1, $2)',
+    [emailKey, clientKey],
+  );
+  return {
+    authenticated: true,
+    allowed: Boolean(result.rows[0].allowed),
+    retryAfterSeconds: Number(result.rows[0].retry_after_seconds ?? 0),
+  };
+}
+
+export async function changeCurrentPassword(currentPassword: string, newPassword: string, clientAddress: string): Promise<PasswordChangeResult> {
+  // Lock the verified account and its session so a concurrent role change or
+  // deactivation cannot race with this sensitive credential update.
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return 'session';
+
+  const client = await getDbPool().connect();
+  try {
+    await client.query('BEGIN');
+    // Lock the account first, matching administrator updates that lock the
+    // account before their trigger removes sessions; this avoids lock inversion.
+    const session = await client.query(
+      'SELECT user_id FROM app_sessions WHERE token_hash = $1 AND expires_at > now()',
+      [tokenDigest(token)],
+    );
+    if (!session.rowCount) {
+      await client.query('ROLLBACK');
+      return 'session';
+    }
+    const account = await client.query(
+      'SELECT id, email, password_hash FROM app_users WHERE id = $1::uuid AND active = true FOR UPDATE',
+      [session.rows[0].user_id],
+    );
+    if (!account.rowCount) {
+      await client.query('ROLLBACK');
+      return 'session';
+    }
+    const currentSession = await client.query(
+      'SELECT id FROM app_sessions WHERE token_hash = $1 AND user_id = $2::uuid AND expires_at > now() FOR UPDATE',
+      [tokenDigest(token), account.rows[0].id],
+    );
+    if (!currentSession.rowCount) {
+      await client.query('ROLLBACK');
+      return 'session';
+    }
+
+    const oldHash = account.rows[0].password_hash as string;
+    if (!(await verifyPassword(currentPassword, oldHash))) {
+      await client.query('ROLLBACK');
+      return 'incorrect';
+    }
+    if (await verifyPassword(newPassword, oldHash)) {
+      await client.query('ROLLBACK');
+      return 'same';
+    }
+
+    const updated = await client.query(
+      'UPDATE app_users SET password_hash = $1, updated_at = now() WHERE id = $2::uuid AND password_hash = $3 AND active = true',
+      [await hashPassword(newPassword), account.rows[0].id, oldHash],
+    );
+    if (updated.rowCount !== 1) {
+      await client.query('ROLLBACK');
+      return 'session';
+    }
+    const emailKey = loginRateKey('email', `${String(account.rows[0].email).trim().toLowerCase()}\0${clientAddress}`);
+    await client.query('SELECT clear_auth_login_email_attempts($1)', [emailKey]);
+    await client.query('COMMIT');
+    return 'changed';
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 function tokenDigest(token: string) {

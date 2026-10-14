@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
 
-type Props = { searchParams: Promise<{ error?: string }> };
+type Props = { searchParams: Promise<{ error?: string; passwordChanged?: string }> };
 
 export default function LoginPage(props: Props) {
   return <Suspense fallback={<main className="page-shell"><section className="loading-panel"><h1>Sign in</h1><p>Loading sign-in…</p></section></main>}><LoginContent {...props} /></Suspense>;
@@ -21,6 +21,7 @@ async function LoginContent({ searchParams }: Props) {
       {params.error === '1' && <p className="form-alert" role="alert">Email or password is incorrect, or this account is inactive.</p>}
       {params.error === '2' && <p className="form-alert" role="alert">Too many sign-in attempts. Wait before trying again.</p>}
       {params.error === '3' && <p className="form-alert" role="alert">Sign-in is temporarily unavailable. Please try again later.</p>}
+      {params.passwordChanged === '1' && <p className="success-notice" role="status">Your password was changed. Sign in with the new password.</p>}
       <form action="/login/authenticate" method="post" className="auth-form">
         <label className="form-field"><span>Email address</span><input name="email" type="email" autoComplete="username" maxLength={254} required /></label>
         <label className="form-field"><span>Password</span><input name="password" type="password" autoComplete="current-password" maxLength={1024} required /></label>

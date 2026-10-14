@@ -2,6 +2,15 @@
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
+## [1.4.0] - 2026-10-14
+
+### Added
+
+- Allow signed-in users to change their password after confirming their current password.
+- Revoke every active session when a password changes and record an append-only security event with no password or hash data.
+- Verify same-origin enforcement, password confirmation, database-backed attempt limiting, stale-session rejection, session revocation, security-event grants, and new-password sign-in in the CI-only disposable database.
+- Document account security in the user manual and database design.
+
 ## [1.3.2] - 2026-10-14
 
 ### Security and maintenance

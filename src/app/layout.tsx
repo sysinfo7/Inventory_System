@@ -25,7 +25,7 @@ async function SessionNavigation() {
   return <>
     <nav className="top-nav" aria-label="Main navigation">
       <Link href="/">Overview</Link>
-      {user && <><Link href="/products">Products</Link><Link href="/stock">Stock</Link><Link href="/activity">Activity</Link><Link href="/permissions">Permissions</Link>{user.role === 'admin' && <Link href="/users">Users</Link>}</>}
+      {user && <><Link href="/products">Products</Link><Link href="/stock">Stock</Link><Link href="/activity">Activity</Link><Link href="/permissions">Permissions</Link><Link href="/account/security">Account</Link>{user.role === 'admin' && <Link href="/users">Users</Link>}</>}
     </nav>
     {user ? <div className="account-controls"><span className="environment-tag"><span aria-hidden="true">●</span> {user.displayName} · {user.role}</span><LogoutButton /></div>
       : <Link className="button button-secondary sign-in-link" href="/login">Sign in</Link>}

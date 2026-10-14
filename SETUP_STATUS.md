@@ -4,7 +4,7 @@
 
 - The repository uses Node.js 24, npm, Next.js 16.4, TypeScript, PostgreSQL 17, Docker Compose, and `pg`.
 - The local PostgreSQL service is configured on loopback port `5433`; the development web server binds to `127.0.0.1`.
-- Database migrations 001-015 are applied locally. `npm run db:check`, `npm run db:provision-app`, and repeat `npm run db:migrate` passed after the authentication changes.
+- Database migrations 001-016 are applied locally. `npm run db:check`, `npm run db:provision-app`, and repeat `npm run db:migrate` passed after the authentication changes.
 - Migrations 004 and 006 seed `Demo Store` and `Demo Outlet`; migration 005 prevents stock movements for inactive/missing products; migration 007 seeds three fictional products and eight audited movements using the database write functions. The user manual screenshots show a one-off guide receipt that was present before the October 14 clean reset; the current database contains only the eight seeded movements.
 
 ## Implemented application behavior
@@ -25,6 +25,7 @@
 - Administrator account management can create, activate, and deactivate accounts; users cannot deactivate themselves or the last active administrator. Manager, Clerk, and Read-only test accounts are opt-in and use generated passwords.
 - PostgreSQL revokes every existing session when an account role changes or its active flag changes to false. Reactivating an account does not restore previous sessions.
 - Login attempts are reserved atomically in PostgreSQL before password verification. Eight attempts per normalized email/client pair or 100 per client are allowed in a 15-minute window; successful login clears that email/client bucket. HMAC keys use the app connection secret, and expired hashes are pruned in bounded batches. The auth verifier confirms the threshold, retry interval, and least-privilege table access.
+- Migration 016 adds an append-only `app_security_events` table. A user can change their own password after current-password verification; the database trigger logs only the subject UUID, event type, and timestamp, then revokes all sessions atomically. The runtime role cannot read or write the security-event table. Local migration, database, stock, lint, typecheck, and standard auth checks passed; CI exercises the full password-change workflow in its disposable database.
 - The authentication verifier now removes its temporary user with the local database administrator connection. Run `npm run auth:cleanup-checks` once to remove temporary users left by earlier verifier versions.
 - These are quantity records; they do not process payments or create accounting entries. Persistent account lockout and recovery remain future security work.
 
@@ -50,6 +51,8 @@
 - The local administrator account has been created and the owner has confirmed signing in. The bootstrap script requires each operator to choose their own private password.
 - Release `v1.3.2` updates Next.js and `eslint-config-next` to 16.4.1. `npm run lint`, `npm run typecheck`, and `npm audit --omit=dev` pass. Full `npm audit` still reports the unpatched development-only `braces@3.0.3` advisory; the production dependency tree is clear. Local Windows Turbopack build could not create a junction under `.next` due to sandbox access denial, but GitHub Actions passed the production build and all workflow steps for [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38618177582) and [tag `v1.3.2`](https://github.com/sysinfo7/Inventory_System/actions/runs/38618177238).
 - Clean-reset rehearsal completed on 2026-10-14. The fresh 55,002-byte backup at `backups/inventory-20261014-145320.dump` restored into a separate database with 15 migrations, 3 products, 2 locations, 9 movements, 12 audit events, and 4 users; the temporary restore database was dropped before `docker compose down -v`. The setup script reapplied migrations 001–015, the runtime role and administrator were recreated, and owner-provided output confirms stock and authentication/permission verification passed. The seeded database now has eight movements; the separate guide-receipt example was removed as expected.
+- Migration 016 was applied locally after the clean-reset rehearsal. `npm run db:check`, `npm run db:verify-stock`, `npm run auth:verify`, `npm run lint`, and `npm run typecheck` passed. Password-change form, verification, audit, and session-revocation checks are enabled in GitHub Actions; CI evidence is pending the release run.
+- A local v1.4.0 production build attempt hit the known Windows sandbox denial when Turbopack tried to create a junction below .next; GitHub Actions production-build verification is pending the push.
 
 ## Owner's next local steps
 

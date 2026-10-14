@@ -1,13 +1,13 @@
 # Retail Inventory Database Design
 
 **Portfolio overview · PostgreSQL 17 · TypeScript/Next.js application**  
-**Maintained project document · Last updated 2026-10-13**
+**Maintained project document · Last updated 2026-10-14**
 
 ## Purpose
 
-This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`014`](../db/014_revoke_sessions_on_access_change.sql); notable files include the product and inventory controls, demo seed, auth/session schema, authenticated audit function, actor foreign keys, login-throttle store, and session revocation rule. Operational commands are in [`DATABASE.md`](DATABASE.md).
+This document explains the relational database design for a retail inventory portfolio project. It is written for reviewers who want to understand how catalog data, stock by location, movement history, audit events, and sign-in fit together. The SQL source of truth is in migrations [`001`](../db/001_initial.sql) through [`016`](../db/016_password_change_audit.sql); notable files include the product and inventory controls, demo seed, auth/session schema, authenticated audit function, actor foreign keys, login-throttle store, and session revocation rules. Operational commands are in [`DATABASE.md`](DATABASE.md).
 
-The current web application includes catalog, stock, movement activity, authentication, role-based permissions, database-backed login throttling, and automatic session revocation after role/deactivation changes. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys; migration 011 adds hashed rate-limit buckets; migration 014 adds the session revocation trigger. Role enforcement is in trusted app server code; PostgreSQL connection roles remain separate.
+The current web application includes catalog, stock, movement activity, authentication, role-based permissions, database-backed login throttling, and automatic session revocation after role/deactivation/password changes. Signed-in users can change a password after re-entering the current password. `/activity` displays verified actors for new movements; pre-authentication demo rows have a NULL actor. Migrations 008-010 add application users, sessions, authenticated product auditing, and actor foreign keys; migration 011 adds hashed rate-limit buckets; migration 014 adds role/deactivation session revocation; migration 016 adds append-only password-change security events and session revocation. Role enforcement is in trusted app server code; PostgreSQL connection roles remain separate.
 
 ## Entity relationship diagram
 
@@ -94,11 +94,19 @@ erDiagram
         integer attempt_count
         timestamptz window_started_at
     }
+    APP_SECURITY_EVENTS {
+        bigint id PK
+        uuid user_id "subject UUID, retained without account FK"
+        text event_type "password_changed"
+        timestamptz occurred_at
+    }
 ```
 
 `INVENTORY_AUDIT_LOG` is intentionally not drawn with a normal entity foreign-key connector for the entity itself: it stores a polymorphic `(entity_type, entity_id)` reference for product and stock-movement audit events, which PostgreSQL does not enforce as a single foreign key. Actor IDs are real nullable foreign keys to `APP_USERS`; they stay NULL on pre-authentication seed rows and point to the signed-in app user for new writes.
 
 `AUTH_LOGIN_RATE_LIMITS` is intentionally unconnected to the business entities: its key is an HMAC digest of a normalized email/client pair or client address. It retains no raw email/IP and uses a time window; expired buckets are pruned in bounded batches during later sign-in attempts.
+
+`APP_SECURITY_EVENTS` keeps a pseudonymous account UUID and timestamp for password changes. It deliberately has no account foreign key, so deleting an account does not erase security history; it stores no email, password, or password hash. A restricted database trigger writes the event and revokes all sessions as part of the password update. The application runtime role cannot read or write this table directly.
 
 ## Tables and keys
 
@@ -116,6 +124,7 @@ erDiagram
 | `app_users` | Application identity, normalized unique email, scrypt password hash, role, and active state. | UUID primary key; email case-insensitively unique; role constrained to the defined role set. |
 | `app_sessions` | Hashed opaque login token with user and expiry. | UUID primary key; user foreign key; token hash unique; raw cookie token is never persisted. |
 | `auth_login_rate_limits` | Short-lived attempt counters keyed by HMAC digests for email/client and client scopes. | Digest bucket key is the primary key; no raw identity or IP address is stored; runtime can only call the narrow security-definer functions. |
+| `app_security_events` | Append-only record of a password change by subject UUID and timestamp. | Identity primary key; event type constraint; deliberately has no account foreign key so history survives account removal; runtime has no direct table access. |
 
 `stock_movements.created_at` is retained from the initial schema; `occurred_at` was added for the effective event time. New movements set both when written through the database function. Existing rows receive a default `occurred_at` during migration 002.
 

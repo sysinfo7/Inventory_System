@@ -15,11 +15,14 @@ if (!['http:', 'https:'].includes(new URL(appUrl).protocol) || !['127.0.0.1', 'l
 
 const scrypt = promisify(scryptCallback);
 const pool = new pg.Pool({ connectionString: process.env.APP_DATABASE_URL, max: 2 });
+const auditPool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
 const userId = randomUUID();
 const email = `auth-check-${userId}@inventory-demo.invalid`;
 const password = randomBytes(24).toString('base64url');
+let loginPassword = password;
 let cookie = '';
 let ciMovementCreated = false;
+let ciPasswordChanged = false;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -33,7 +36,7 @@ async function signIn() {
   const response = await fetch(new URL('/login/authenticate', appUrl), {
     method: 'POST', redirect: 'manual',
     headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ email, password }),
+    body: new URLSearchParams({ email, password: loginPassword }),
   });
   const setCookie = response.headers.get('set-cookie') ?? '';
   cookie = setCookie.split(';', 1)[0];
@@ -74,12 +77,50 @@ try {
       && !sessionTriggerPrivileges.rows[0].can_call_trigger,
     'Session-revocation trigger privileges exceed the intended narrow access.');
 
+  const securityEventPrivileges = await pool.query(`
+    SELECT has_table_privilege(current_user, 'public.app_security_events', 'SELECT') AS can_read,
+           has_table_privilege(current_user, 'public.app_security_events', 'INSERT') AS can_insert,
+           has_table_privilege(current_user, 'public.app_security_events', 'UPDATE') AS can_update,
+           has_table_privilege(current_user, 'public.app_security_events', 'DELETE') AS can_delete,
+           has_table_privilege(current_user, 'public.app_security_events', 'TRUNCATE') AS can_truncate,
+           has_table_privilege('inventory_function_owner', 'public.app_security_events', 'INSERT') AS trigger_can_insert,
+           has_sequence_privilege('inventory_function_owner', 'public.app_security_events_id_seq', 'USAGE') AS trigger_can_use_id
+  `);
+  const securityGrants = securityEventPrivileges.rows[0];
+  assert(!securityGrants.can_read && !securityGrants.can_insert && !securityGrants.can_update
+      && !securityGrants.can_delete && !securityGrants.can_truncate
+      && securityGrants.trigger_can_insert && securityGrants.trigger_can_use_id,
+    'Password security-event table grants exceed the intended trigger-only write access.');
+
   const salt = randomBytes(16);
   const derived = await scrypt(password, salt, 64);
   const passwordHash = `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`;
   await pool.query("INSERT INTO app_users(id, email, display_name, password_hash, role) VALUES ($1, $2, $3, $4, 'viewer')", [userId, email, 'Temporary Auth Check', passwordHash]);
 
+  // Verify the password-change trigger transactionally so local checks leave no
+  // security event or test session behind. The admin-only connection reads the log.
+  const auditClient = await auditPool.connect();
+  const syntheticSession = randomBytes(32).toString('hex');
+  const changedSalt = randomBytes(16);
+  const changedKey = await scrypt(`${password}-transaction-check`, changedSalt, 64);
+  try {
+    await auditClient.query('BEGIN');
+    await auditClient.query('INSERT INTO app_sessions(user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval \'1 hour\')', [userId, syntheticSession]);
+    await auditClient.query('UPDATE app_users SET password_hash = $2 WHERE id = $1::uuid', [userId, `scrypt$${changedSalt.toString('hex')}$${changedKey.toString('hex')}`]);
+    const event = await auditClient.query("SELECT event_type FROM app_security_events WHERE user_id = $1::uuid", [userId]);
+    const session = await auditClient.query('SELECT count(*)::int AS count FROM app_sessions WHERE user_id = $1::uuid', [userId]);
+    assert(event.rowCount === 1 && event.rows[0].event_type === 'password_changed', 'Password update did not append its security event.');
+    assert(session.rows[0].count === 0, 'Password update did not revoke the account sessions.');
+  } finally {
+    await auditClient.query('ROLLBACK');
+    auditClient.release();
+  }
+
   const login = await signIn();
+  const securityPageCheck = await page('/account/security');
+  const securityPageHtml = await securityPageCheck.text();
+  assert(securityPageCheck.status === 200 && securityPageHtml.includes('Confirm new password'),
+    'Signed-in user could not render the password-change page.');
   assert(login.headers.get('x-content-type-options') === 'nosniff', 'Missing MIME-sniffing protection header.');
   assert(login.headers.get('x-frame-options') === 'DENY', 'Missing clickjacking protection header.');
   assert(login.headers.get('referrer-policy') === 'strict-origin-when-cross-origin', 'Missing referrer privacy header.');
@@ -164,6 +205,62 @@ try {
   await pool.query('UPDATE app_users SET active = true WHERE id = $1::uuid', [userId]);
   await assertRevokedAndSignInAgain('Reactivation unexpectedly preserved an earlier session.');
 
+  if (process.env.AUTH_PASSWORD_CHANGE_CI_TESTS === 'true') {
+    const securityPage = await page('/account/security');
+    const securityHtml = await securityPage.text();
+    assert(securityPage.status === 200 && securityHtml.includes('Change password'), 'Signed-in user could not open account security.');
+
+    const postPasswordChange = (currentPassword, newPassword, confirmation, requestOrigin = appUrl) => fetch(new URL('/account/password/change', appUrl), {
+      method: 'POST', redirect: 'manual',
+      headers: { origin: requestOrigin, host: new URL(appUrl).host, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ currentPassword, newPassword, confirmation }),
+    });
+    const crossSite = await postPasswordChange(password, `${password}-rotated`, `${password}-rotated`, 'https://attacker.invalid');
+    assert(crossSite.status === 403, 'Cross-origin password-change request was accepted.');
+    const incorrectPassword = await postPasswordChange(`${password}-wrong`, `${password}-rotated`, `${password}-rotated`);
+    assert(incorrectPassword.status === 303 && new URL(incorrectPassword.headers.get('location'), appUrl).searchParams.get('error') === 'incorrect',
+      'An incorrect current password was accepted for a password change.');
+    const mismatch = await postPasswordChange(password, `${password}-rotated`, `${password}-different`);
+    assert(mismatch.status === 303 && new URL(mismatch.headers.get('location'), appUrl).searchParams.get('error') === 'invalid',
+      'A mismatched password confirmation was accepted.');
+    const tooShort = await postPasswordChange(password, 'short-password', 'short-password');
+    assert(tooShort.status === 303 && new URL(tooShort.headers.get('location'), appUrl).searchParams.get('error') === 'invalid',
+      'A short password was accepted.');
+    const unchanged = await postPasswordChange(password, password, password);
+    assert(unchanged.status === 303 && new URL(unchanged.headers.get('location'), appUrl).searchParams.get('error') === 'invalid',
+      'The existing password was accepted as its own replacement.');
+
+    const staleCookie = cookie;
+    const rotatedPassword = `${password}-rotated`;
+    const changed = await postPasswordChange(password, rotatedPassword, rotatedPassword);
+    assert(changed.status === 303 && new URL(changed.headers.get('location'), appUrl).searchParams.get('passwordChanged') === '1',
+      'A valid password change did not redirect to sign-in.');
+    ciPasswordChanged = true;
+    const revokedSessions = await pool.query('SELECT count(*)::int AS count FROM app_sessions WHERE user_id = $1::uuid', [userId]);
+    assert(revokedSessions.rows[0].count === 0, 'Password change did not revoke all sessions.');
+    const securityEvent = await auditPool.query(
+      "SELECT count(*)::int AS count FROM app_security_events WHERE user_id = $1::uuid AND event_type = 'password_changed'",
+      [userId],
+    );
+    assert(securityEvent.rows[0].count === 1, 'Password change did not append exactly one security event.');
+
+    cookie = staleCookie;
+    const staleProducts = await page('/products');
+    const staleHtml = await staleProducts.text();
+    assert(staleHtml.includes('Welcome back.') || staleHtml.includes('NEXT_REDIRECT;replace;/login;'),
+      'The pre-change session remained usable after password rotation.');
+    cookie = '';
+    const oldPasswordLogin = await fetch(new URL('/login/authenticate', appUrl), {
+      method: 'POST', redirect: 'manual',
+      headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email, password }),
+    });
+    assert(new URL(oldPasswordLogin.headers.get('location'), appUrl).searchParams.get('error') === '1',
+      'The previous password remained valid after rotation.');
+    loginPassword = rotatedPassword;
+    await signIn();
+  }
+
   const logout = await fetch(new URL('/logout', appUrl), {
     method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie },
   });
@@ -207,7 +304,7 @@ try {
     throw error;
   } finally { client.release(); }
 
-  console.log(`Authentication verified: sign-in, protected cookie, response security headers, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution${process.env.ACTIVITY_FILTER_CI_TESTS === 'true' ? ' plus activity actor/date/legacy filters' : ''} passed.`);
+  console.log(`Authentication verified: sign-in, protected cookie, response security headers, account security page, rollback-only password-event/session trigger, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution${process.env.ACTIVITY_FILTER_CI_TESTS === 'true' ? ' plus activity actor/date/legacy filters' : ''}${ciPasswordChanged ? ', password-change confirmation, event audit and session revocation' : ''} passed.`);
 } finally {
   if (cookie) {
     try { await fetch(new URL('/logout', appUrl), { method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie } }); } catch { /* The session row is also removed directly below. */ }
@@ -221,5 +318,6 @@ try {
   } finally {
     await cleanup.end().catch(() => {});
     await pool.end();
+    await auditPool.end();
   }
 }
