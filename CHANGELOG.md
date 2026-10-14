@@ -20,7 +20,7 @@
 ### Scope
 
 - Purchasing tracks physical quantities only. Supplier costs, currency, invoices, taxes, payments, and accounting entries are not included.
-- Migrations 019–021, the local database check, stock/purchasing/authentication verifiers, and live admin browser walkthrough passed locally. The walkthrough completed PO-00000007 for five units in two receipts and confirmed both activity events and the updated location balance. GitHub Actions passed every check, including production build, purchasing verifier, and authentication/permission smoke test, for [feature commit aa5fd6f](https://github.com/sysinfo7/Inventory_System/actions/runs/38650403985), [documentation commit 4cc752b](https://github.com/sysinfo7/Inventory_System/actions/runs/38652134661), and [release tag v1.6.0](https://github.com/sysinfo7/Inventory_System/actions/runs/38652134590). Purchasing-specific manual screenshots remain future work.
+- Migrations 019–021, the local database check, stock/purchasing/authentication verifiers, and live admin browser walkthrough passed locally. The walkthrough completed PO-00000007 for five units in two receipts and confirmed both activity events and the updated location balance. GitHub Actions passed every check, including production build, purchasing verifier, concurrent receipt test, and authentication/permission smoke test, for [main commit 6f6abc6](https://github.com/sysinfo7/Inventory_System/actions/runs/38654409673) and [release tag v1.6.0](https://github.com/sysinfo7/Inventory_System/actions/runs/38652134590). A completed-order detail screenshot is now in the user manual; list, draft, and receipt-form screenshots remain future work.
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 

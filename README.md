@@ -82,4 +82,4 @@ The local PostgreSQL port and Next.js development server bind to loopback. The a
 
 1. Email-based password recovery, account invitations, and a persistent account lockout policy.
 2. A production security review and deployment configuration; keep the verified backup local unless a secure off-checkout destination is chosen.
-3. Add purchasing screenshots to the manual, add separate-session receipt race coverage, then complete deployment work.
+3. Add the remaining purchasing screenshots to the manual, then complete deployment work.
