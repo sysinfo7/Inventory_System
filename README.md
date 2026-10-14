@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.3.0** — adds actor and UTC date-range filters to the movement history.
+**Project version: 1.3.1** — fixes CI cleanup for the new actor and UTC date-range movement-history checks.
 
 ## Versioning
 
@@ -14,7 +14,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in with persistent rate limiting, role-based permissions, and administrator user management. Authenticated product and stock changes record their actor in the audit trail. Movement history filters by location, type, product/reason, actor, and inclusive UTC date range. Application permission roles are administrator, manager, clerk, and read-only.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke all sessions when an account role changes or the account is deactivated; migration 015 adds activity-filter indexes. Rollback-only stock and authentication checks pass locally, including returns, count corrections, role visibility, sign-in throttling, and session revocation. GitHub Actions passed for both `main` and the `v1.2.1` release tag. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke all sessions when an account role changes or the account is deactivated; migration 015 adds activity-filter indexes. Rollback-only stock and authentication checks pass locally, including returns, count corrections, role visibility, sign-in throttling, and session revocation. GitHub Actions passed for both `main` and tag `v1.2.1`. The `v1.3.0` activity-filter workflow passed its filter assertions but failed while cleaning up the temporary actor for an immutable test event; `v1.3.1` fixes the CI-only cleanup behavior. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 

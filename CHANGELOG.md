@@ -2,6 +2,12 @@
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
+## [1.3.1] - 2026-10-13
+
+### Fixed
+
+- Keep the CI-only stock movement's temporary actor in GitHub's disposable database so immutable audit history does not block verifier cleanup. Local auth verification still removes its temporary account.
+
 ## [1.3.0] - 2026-10-13
 
 ### Added

@@ -19,6 +19,7 @@ const userId = randomUUID();
 const email = `auth-check-${userId}@inventory-demo.invalid`;
 const password = randomBytes(24).toString('base64url');
 let cookie = '';
+let ciMovementCreated = false;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -115,6 +116,9 @@ try {
       'SELECT record_stock_movement($1::bigint, $2::bigint, 1, $3, $4, $5::uuid, $6::uuid)',
       [product.rows[0].id, location.rows[0].id, 'receiving', reason, userId, randomUUID()],
     );
+    // Movements are append-only and retain their actor via a restrictive FK.
+    // Leave this fixture account only in CI's disposable database.
+    ciMovementCreated = true;
     const today = new Date().toISOString().slice(0, 10);
     const attributedParams = new URLSearchParams({ actor: userId, from: today, to: today, q: reason });
     const attributedActivity = await page(`/activity?${attributedParams}`);
@@ -210,8 +214,10 @@ try {
   }
   const cleanup = new pg.Client({ connectionString: process.env.DATABASE_URL });
   try {
-    await cleanup.connect();
-    await cleanup.query('DELETE FROM app_users WHERE id = $1::uuid', [userId]);
+    if (!ciMovementCreated) {
+      await cleanup.connect();
+      await cleanup.query('DELETE FROM app_users WHERE id = $1::uuid', [userId]);
+    }
   } finally {
     await cleanup.end().catch(() => {});
     await pool.end();
