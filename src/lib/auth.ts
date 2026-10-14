@@ -83,6 +83,8 @@ export async function changeCurrentPassword(currentPassword: string, newPassword
     await client.query('BEGIN');
     // Lock the account first, matching administrator updates that lock the
     // account before their trigger removes sessions; this avoids lock inversion.
+    // The runtime role intentionally cannot lock session rows directly because
+    // PostgreSQL requires UPDATE privileges for SELECT ... FOR UPDATE.
     const session = await client.query(
       'SELECT user_id FROM app_sessions WHERE token_hash = $1 AND expires_at > now()',
       [tokenDigest(token)],
@@ -100,7 +102,7 @@ export async function changeCurrentPassword(currentPassword: string, newPassword
       return 'session';
     }
     const currentSession = await client.query(
-      'SELECT id FROM app_sessions WHERE token_hash = $1 AND user_id = $2::uuid AND expires_at > now() FOR UPDATE',
+      'SELECT id FROM app_sessions WHERE token_hash = $1 AND user_id = $2::uuid AND expires_at > now()',
       [tokenDigest(token), account.rows[0].id],
     );
     if (!currentSession.rowCount) {

@@ -224,7 +224,7 @@ try {
     const mismatch = await postPasswordChange(password, `${password}-rotated`, `${password}-different`);
     assert(mismatch.status === 303 && new URL(mismatch.headers.get('location'), appUrl).searchParams.get('error') === 'invalid',
       'A mismatched password confirmation was accepted.');
-    const tooShort = await postPasswordChange(password, 'short-password', 'short-password');
+    const tooShort = await postPasswordChange(password, 'short', 'short');
     assert(tooShort.status === 303 && new URL(tooShort.headers.get('location'), appUrl).searchParams.get('error') === 'invalid',
       'A short password was accepted.');
     const unchanged = await postPasswordChange(password, password, password);
