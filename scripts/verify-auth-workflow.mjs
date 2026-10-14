@@ -148,6 +148,25 @@ try {
     auditClient.release();
   }
 
+  const oversizedBody = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('x'.repeat(16 * 1024 + 1)));
+      controller.close();
+    },
+  });
+  const oversizedForm = await fetch(new URL('/login/authenticate', appUrl), {
+    method: 'POST', redirect: 'manual', duplex: 'half',
+    headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
+    body: oversizedBody,
+  });
+  assert(oversizedForm.status === 413, 'Oversized streamed sign-in form was not rejected at the 16 KiB limit.');
+  const unsupportedForm = await fetch(new URL('/login/authenticate', appUrl), {
+    method: 'POST', redirect: 'manual',
+    headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/json' },
+    body: '{}',
+  });
+  assert(unsupportedForm.status === 415, 'Unsupported sign-in content type was not rejected.');
+
   const login = await signIn();
   const securityPageCheck = await page('/account/security');
   const securityPageHtml = await securityPageCheck.text();
@@ -514,7 +533,7 @@ try {
     throw error;
   } finally { client.release(); }
 
-  console.log(`Authentication verified: sign-in, protected cookie, response security headers, account security page, rollback-only password-event/session trigger, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution${process.env.ACTIVITY_FILTER_CI_TESTS === 'true' ? ' plus activity actor/date/legacy filters' : ''}${ciPasswordChanged ? ', password-change confirmation, event audit and session revocation' : ''}${ciPasswordResetCompleted ? ', administrator reset, forced-change gate, actor audit, and concurrent-login revocation' : ''} passed.`);
+  console.log(`Authentication verified: bounded sign-in/password forms, unsupported form rejection, sign-in, protected cookie, response security headers, account security page, rollback-only password-event/session trigger, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution${process.env.ACTIVITY_FILTER_CI_TESTS === 'true' ? ' plus activity actor/date/legacy filters' : ''}${ciPasswordChanged ? ', password-change confirmation, event audit and session revocation' : ''}${ciPasswordResetCompleted ? ', administrator reset, forced-change gate, actor audit, and concurrent-login revocation' : ''} passed.`);
 } finally {
   if (cookie) {
     try { await fetch(new URL('/logout', appUrl), { method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie } }); } catch { /* The session row is also removed directly below. */ }

@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { isIP } from 'node:net';
 import { authenticate } from '@/lib/auth';
+import { formReadErrorResponse, readAuthForm } from '@/lib/url-encoded-form';
 
 export async function POST(request: Request) {
   // Same-origin check also protects this credential endpoint from cross-site form posts.
   const origin = request.headers.get('origin');
   const host = request.headers.get('host');
   if (!origin || !host || new URL(origin).host !== host) return new Response('Forbidden', { status: 403 });
-  const form = await request.formData();
+  const parsed = await readAuthForm(request);
+  if (!parsed.ok) return formReadErrorResponse(parsed.reason);
+  const form = parsed.form;
   const email = form.get('email');
   const password = form.get('password');
   if (typeof email !== 'string' || typeof password !== 'string') return NextResponse.redirect(new URL('/login?error=1', request.url), 303);

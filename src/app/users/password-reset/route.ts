@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { hashPassword, requirePermission } from '@/lib/auth';
 import { getDbPool } from '@/lib/db';
+import { formReadErrorResponse, readAuthForm } from '@/lib/url-encoded-form';
 
 function redirectTo(request: Request, query: string) {
   return NextResponse.redirect(new URL(`/users?${query}`, request.url), 303);
@@ -19,7 +20,9 @@ export async function POST(request: Request) {
   }
 
   const actor = await requirePermission('users:manage');
-  const form = await request.formData();
+  const parsed = await readAuthForm(request);
+  if (!parsed.ok) return formReadErrorResponse(parsed.reason);
+  const form = parsed.form;
   const userId = form.get('userId');
   const temporaryPassword = form.get('temporaryPassword');
   const confirmation = form.get('confirmation');

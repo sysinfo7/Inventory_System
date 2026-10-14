@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isIP } from 'node:net';
 import { changeCurrentPassword, reserveCurrentPasswordAttempt, revokeCurrentSession } from '@/lib/auth';
+import { formReadErrorResponse, readAuthForm } from '@/lib/url-encoded-form';
 
 function redirectTo(request: Request, path: string) {
   return NextResponse.redirect(new URL(path, request.url), 303);
@@ -12,7 +13,9 @@ export async function POST(request: Request) {
   const host = request.headers.get('host');
   if (!origin || !host || new URL(origin).host !== host) return new Response('Forbidden', { status: 403 });
 
-  const form = await request.formData();
+  const parsed = await readAuthForm(request);
+  if (!parsed.ok) return formReadErrorResponse(parsed.reason);
+  const form = parsed.form;
   const currentPassword = form.get('currentPassword');
   const newPassword = form.get('newPassword');
   const confirmation = form.get('confirmation');

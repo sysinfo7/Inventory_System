@@ -20,6 +20,8 @@ These are data-integrity controls in the current schema, not proof of a producti
 
 ## Application authentication and permissions
 
+Sign-in, self-service password changes, and administrator password resets accept URL-encoded forms only. A bounded stream reader rejects request bodies larger than 16 KiB before decoding fields or performing password work. The authentication verifier covers an oversized streamed sign-in body and unsupported content type.
+
 Migrations 008-010 add application users with roles (`admin`, `manager`, `clerk`, `viewer`), revocable eight-hour sessions, normalized unique email addresses, salted scrypt password hashes, actor-aware catalog writes, and actor foreign keys. Login uses a cryptographically random opaque cookie; only its SHA-256 digest is stored in PostgreSQL. The cookie is HttpOnly, SameSite=Lax, scoped to `/`, and Secure in production. Sign-out revokes the database session. Passwords use timing-safe comparison; unknown users follow a dummy scrypt path.
 
 Migration 014 installs a database trigger that deletes every session for an account when its role changes or it is deactivated. The trigger runs under the restricted `inventory_function_owner` role, which can delete sessions using the `user_id` column but cannot read session tokens or expiration data. This also prevents an old session from becoming valid again after account reactivation.
