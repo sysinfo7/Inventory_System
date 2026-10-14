@@ -218,8 +218,9 @@ try {
     const crossSite = await postPasswordChange(password, `${password}-rotated`, `${password}-rotated`, 'https://attacker.invalid');
     assert(crossSite.status === 403, 'Cross-origin password-change request was accepted.');
     const incorrectPassword = await postPasswordChange(`${password}-wrong`, `${password}-rotated`, `${password}-rotated`);
-    assert(incorrectPassword.status === 303 && new URL(incorrectPassword.headers.get('location'), appUrl).searchParams.get('error') === 'incorrect',
-      'An incorrect current password was accepted for a password change.');
+    const incorrectLocation = new URL(incorrectPassword.headers.get('location'), appUrl);
+    assert(incorrectPassword.status === 303 && incorrectLocation.pathname === '/account/security' && incorrectLocation.searchParams.get('error') === 'incorrect',
+      `Incorrect current password response was unexpected: ${incorrectPassword.status} ${incorrectLocation.pathname}${incorrectLocation.search}`);
     const mismatch = await postPasswordChange(password, `${password}-rotated`, `${password}-different`);
     assert(mismatch.status === 303 && new URL(mismatch.headers.get('location'), appUrl).searchParams.get('error') === 'invalid',
       'A mismatched password confirmation was accepted.');
