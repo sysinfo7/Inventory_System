@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.3.2** — updates Next.js and its matching ESLint config to 16.4.1; release checks are pending.
+**Project version: 1.3.2** — updates Next.js and its matching ESLint config to 16.4.1. GitHub Actions passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38618177582) and [tag `v1.3.2`](https://github.com/sysinfo7/Inventory_System/actions/runs/38618177238).
 
 ## Versioning
 
@@ -66,7 +66,7 @@ npm run db:verify-stock
 npm run auth:verify
 ```
 
-GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. Release `v1.3.1` passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38501795878) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38501795851).
+GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. Release `v1.3.2` passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38618177582) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38618177238).
 
 ## Security boundary
 
