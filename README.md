@@ -2,11 +2,13 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.0.0** — the first portfolio release.
+**Project version: 1.0.1** — a patch release with browser security hardening.
 
 ## Versioning
 
 The project follows Semantic Versioning (`MAJOR.MINOR.PATCH`): increment MAJOR for incompatible changes, MINOR for backward-compatible features, and PATCH for backward-compatible fixes. Changes made before the first stable release use `0.x.y`; `1.0.0` marks the initial feature-complete portfolio release. Keep `package.json` and `package-lock.json` versions in sync, and create a Git tag such as `v1.0.0` when publishing each release. Commit hashes identify source revisions but are not release numbers.
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Current status
 

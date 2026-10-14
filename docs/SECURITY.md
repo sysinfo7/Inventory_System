@@ -32,6 +32,8 @@ Every inventory page and Server Action checks a permission using the database-re
 
 Demo-only accounts are created only after explicit local opt-in using `npm run auth:seed-test-users`; generated one-time passwords print in the local terminal and only password hashes are stored. The runtime app login has broad app-operation DB grants, so application roles are enforced in trusted server code. Direct use of the DB credential bypasses app roles. The current database setup is local-only. Account lockout/rate limits, password recovery, invitation flow, session revocation after role change, and self-service password changes remain to be built.
 
+Global responses set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a strict-origin referrer policy, a restrictive browser `Permissions-Policy`, disable DNS prefetch, and omit the `X-Powered-By` framework banner. The authentication smoke check asserts the security headers on the credential endpoint. A Content Security Policy and HSTS are not configured: CSP needs a deliberate nonce-compatible Next.js design, and HSTS should only be enabled with a confirmed HTTPS deployment. The current local HTTP app therefore does not claim transport security.
+
 Stock actions derive `actor_id` from the database-validated session and pass it to `record_stock_movement`; catalog writes pass the same verified UUID to `save_product`. Actor IDs join to `app_users` for display in activity. Previous seed movements retain NULL actors and display as legacy entries.
 
 The `inventory_app` role's grants are only one boundary. Database owners and sufficiently privileged roles can alter schema objects, change functions/triggers, or bypass the intended workflow. The movement/audit history triggers guard ordinary row update/delete and truncate operations; they do not make history immutable against owners, superusers, trigger removal, or other administrative actions. Product data can be changed or deleted and the change is logged when the trigger runs. Do not describe this design as the highest, production-ready, tamper-proof, or compliance-grade security.
@@ -40,7 +42,7 @@ The `inventory_app` role's grants are only one boundary. Database owners and suf
 
 - Do not use the local bootstrap/test-account tooling on non-local databases; scripts enforce a local host or development mode.
 - The app role provisioning is local-only. There are no production credentials, secret manager, credential rotation procedure, TLS configuration, or deployment role ownership model.
-- There is no rate limiting, user authorization, browser security-header policy, or abuse monitoring. Next.js Server Actions enforce an Origin/Host check for CSRF, but that does not authenticate or authorize a caller.
+- There is no rate limiting, account lockout, or abuse monitoring. Next.js Server Actions enforce an Origin/Host check for CSRF, but that does not authenticate or authorize a caller.
 - The schema does not implement supplier/customer records, sales/payment processing, full financial accounting, valuation, tax, or regulatory controls.
 - The local setup credentials and database backups are sensitive. Use fictional demo data and keep `.env` and backups out of source control and screenshots.
 

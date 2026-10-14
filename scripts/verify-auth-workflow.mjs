@@ -39,6 +39,10 @@ try {
     headers: { origin: appUrl, host: new URL(appUrl).host, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ email, password }),
   });
+  assert(login.headers.get('x-content-type-options') === 'nosniff', 'Missing MIME-sniffing protection header.');
+  assert(login.headers.get('x-frame-options') === 'DENY', 'Missing clickjacking protection header.');
+  assert(login.headers.get('referrer-policy') === 'strict-origin-when-cross-origin', 'Missing referrer privacy header.');
+  assert(login.headers.get('permissions-policy') === 'camera=(), microphone=(), geolocation=()', 'Missing restrictive browser permissions header.');
   const setCookie = login.headers.get('set-cookie') ?? '';
   cookie = setCookie.split(';', 1)[0];
   assert(login.status === 303 && cookie.startsWith('inventory_session='), 'Valid credentials did not establish a session.');

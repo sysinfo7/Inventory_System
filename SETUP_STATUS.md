@@ -37,6 +37,7 @@
 - `npm run db:verify-stock` passed after migration 009 and confirms the movement semantics; its test writes run in a transaction that rolls back. It checks blank actor for its synthetic database-level call; application actions now pass the authenticated user UUID.
 - `npm run db:verify-stock` passed after being expanded to cover returns, positive/negative count adjustments, zero and oversell rejection, and all related audit events; its test transaction rolled back. `npm run auth:verify` passed sign-in/session checks, clerk return access, manager-only adjustment visibility, viewer restrictions, logout, and actor audit attribution.
 - `npm run typecheck`, `npm run lint`, `node --check scripts/verify-stock-workflow.mjs`, `node --check scripts/verify-auth-workflow.mjs`, and `git diff --check` passed after the current changes.
+- The `v1.0.0` release commit passed all CI checks on both `main` and the version tag; the documentation follow-up commit `b228585` also passed CI ([run 38491930611](https://github.com/sysinfo7/Inventory_System/actions/runs/38491930611)). Current local auth verification passes including assertions for global response security headers.
 - The local administrator account has been created and the owner has confirmed signing in. The bootstrap script requires each operator to choose their own private password.
 
 ## Owner's next local steps
