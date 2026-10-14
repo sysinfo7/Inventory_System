@@ -1,17 +1,23 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
-import { listInventoryLocations, listStockActivity } from '@/lib/db';
+import { listInventoryLocations, listStockActivity, listStockActivityActors } from '@/lib/db';
 import { requirePermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
-type ActivityPageProps = { searchParams: Promise<{ location?: QueryValue; type?: QueryValue; q?: QueryValue }> };
+type ActivityPageProps = { searchParams: Promise<{ location?: QueryValue; type?: QueryValue; q?: QueryValue; actor?: QueryValue; from?: QueryValue; to?: QueryValue }> };
 
 function firstValue(value: QueryValue) {
   return Array.isArray(value) ? value[0] : value;
 }
 
 const movementTypes = ['receiving', 'sale', 'return', 'adjustment'] as const;
+
+function validDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000')) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
 
 export default function ActivityPage({ searchParams }: ActivityPageProps) {
   return (
@@ -29,20 +35,31 @@ async function ActivityContent({ searchParams }: ActivityPageProps) {
   const rawLocation = firstValue(params.location) ?? '';
   const rawType = firstValue(params.type) ?? 'all';
   const rawSearch = firstValue(params.q) ?? '';
+  const rawActor = firstValue(params.actor) ?? '';
+  const rawFromDate = firstValue(params.from) ?? '';
+  const rawToDate = firstValue(params.to) ?? '';
   const search = rawSearch.trim().slice(0, 100);
+  const fromDate = validDate(rawFromDate) ? rawFromDate : '';
+  const toDate = validDate(rawToDate) ? rawToDate : '';
+  const reversedDateRange = Boolean(fromDate && toDate && fromDate > toDate);
+  const safeFromDate = reversedDateRange ? '' : fromDate;
+  const safeToDate = reversedDateRange ? '' : toDate;
   const movementType = movementTypes.includes(rawType as (typeof movementTypes)[number]) ? rawType : 'all';
   let locations;
+  let actors;
   let activity;
   let locationId = '';
+  let actorId = '';
   try {
-    locations = await listInventoryLocations();
+    [locations, actors] = await Promise.all([listInventoryLocations(), listStockActivityActors()]);
     locationId = locations.some((location) => location.id === rawLocation) ? rawLocation : '';
-    activity = await listStockActivity({ locationId, movementType, search });
+    actorId = rawActor === 'legacy' || actors.some((actor) => actor.id === rawActor) ? rawActor : '';
+    activity = await listStockActivity({ locationId, movementType, search, actorId, fromDate: safeFromDate, toDate: safeToDate });
   } catch (error) {
     console.error('Activity read failed:', error instanceof Error ? error.name : 'unknown error');
     return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Activity</p><h1>Activity is unavailable</h1><p>The movement history could not be loaded. Check the local database setup and refresh this page.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;
   }
-  const hasFilters = Boolean(locationId || search || movementType !== 'all');
+  const hasFilters = Boolean(locationId || search || movementType !== 'all' || actorId || safeFromDate || safeToDate || reversedDateRange);
 
   return (
     <main className="page-shell">
@@ -59,6 +76,13 @@ async function ActivityContent({ searchParams }: ActivityPageProps) {
             <select id="activity-type" name="type" defaultValue={movementType}><option value="all">All types</option>{movementTypes.map((type) => <option key={type} value={type}>{type === 'receiving' ? 'Receiving' : type[0].toUpperCase() + type.slice(1)}</option>)}</select>
             <label htmlFor="activity-search">Search product, SKU, or reason</label>
             <input id="activity-search" type="search" name="q" maxLength={100} placeholder="Search activity" defaultValue={search} />
+            <label htmlFor="activity-actor">Recorded by</label>
+            <select id="activity-actor" name="actor" defaultValue={actorId}><option value="">Anyone</option><option value="legacy">Legacy entries</option>{actors.map((actor) => <option key={actor.id} value={actor.id}>{actor.name}</option>)}</select>
+            <label htmlFor="activity-from">From date (UTC)</label>
+            <input id="activity-from" type="date" name="from" defaultValue={safeFromDate} />
+            <label htmlFor="activity-to">Through date (UTC)</label>
+            <input id="activity-to" type="date" name="to" defaultValue={safeToDate} />
+            {reversedDateRange && <p className="activity-filter-error" role="alert">The start date must be on or before the end date. The date filters were cleared.</p>}
             <button className="button button-secondary" type="submit">Apply filters</button>
             {hasFilters && <Link className="activity-clear" href="/activity">Clear filters</Link>}
           </form>

@@ -49,4 +49,5 @@ jobs:
       - name: Verify authentication and permissions
         env:
           AUTH_TEST_BASE_URL: http://127.0.0.1:3000
+          ACTIVITY_FILTER_CI_TESTS: 'true'
         run: npm run auth:verify

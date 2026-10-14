@@ -48,10 +48,21 @@ export type StockActivity = {
   occurredAt: string;
   actorName: string | null;
 };
+export type StockActivityActor = { id: string; name: string };
 
 export async function listInventoryLocations(): Promise<InventoryLocation[]> {
   const result = await getDbPool().query('SELECT id, name FROM locations ORDER BY lower(name), id');
   return result.rows.map((row): InventoryLocation => ({ id: String(row.id), name: row.name }));
+}
+
+export async function listStockActivityActors(): Promise<StockActivityActor[]> {
+  const result = await getDbPool().query(`
+    SELECT DISTINCT u.id, u.display_name
+    FROM stock_movements AS m
+    JOIN app_users AS u ON u.id = m.actor_id
+    ORDER BY u.display_name, u.id
+  `);
+  return result.rows.map((row): StockActivityActor => ({ id: String(row.id), name: row.display_name }));
 }
 
 export async function listStockItems(locationId: string): Promise<StockItem[]> {
@@ -88,6 +99,9 @@ export async function listStockActivity(filters: {
   locationId: string;
   movementType: string;
   search: string;
+  actorId: string;
+  fromDate: string;
+  toDate: string;
 }): Promise<StockActivity[]> {
   const result = await getDbPool().query(`
     SELECT m.id, m.product_id, p.sku, p.name AS product_name, m.location_id,
@@ -101,9 +115,14 @@ export async function listStockActivity(filters: {
       AND ($2::text = 'all' OR m.movement_type = $2::text)
       AND ($3::text = '' OR p.sku ILIKE '%' || $3 || '%'
         OR p.name ILIKE '%' || $3 || '%' OR m.reason ILIKE '%' || $3 || '%')
+      AND CASE WHEN $4::text = '' THEN true
+        WHEN $4::text = 'legacy' THEN m.actor_id IS NULL
+        ELSE m.actor_id = $4::uuid END
+      AND ($5::text = '' OR m.occurred_at >= ($5::date::timestamp AT TIME ZONE 'UTC'))
+      AND ($6::text = '' OR m.occurred_at < (($6::date + 1)::timestamp AT TIME ZONE 'UTC'))
     ORDER BY m.occurred_at DESC, m.id DESC
     LIMIT 200
-  `, [filters.locationId, filters.movementType, filters.search]);
+  `, [filters.locationId, filters.movementType, filters.search, filters.actorId, filters.fromDate, filters.toDate]);
   return result.rows.map((row): StockActivity => ({
     id: String(row.id), productId: String(row.product_id), sku: row.sku,
     productName: row.product_name, locationId: String(row.location_id),

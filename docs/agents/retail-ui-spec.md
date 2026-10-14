@@ -1,6 +1,6 @@
 # Retail inventory UI/UX specification
 
-Status: design and review reference. Product catalog, selected-location stock page, receive/manual sale-deduction forms, and filtered activity page are implemented for local development. A dashboard, returns/adjustments UI, and authentication remain proposals. This document retains recommended behavior beyond what the current screens implement; the owner reported a passing rollback-only database verification, while runtime concurrency and screenshot review remain open.
+Status: design and review reference. Product catalog, selected-location stock page, receiving, returns, sale deductions, count adjustments, authentication, and role permissions are implemented for local development. The movement history includes location/type/product/reason, actor, and inclusive UTC date filters. A dashboard, resulting balance, and movement detail are future proposals. This document retains recommended behavior beyond what the current screens implement.
 
 ## Product principles
 
@@ -79,7 +79,7 @@ Fields and confirmation must distinguish a quantity addition from a receipt of m
 
 ## Activity / audit history
 
-**Implemented on `/activity` (sign-in required).** Filters are location, movement type, and text matching product name, SKU, or reason. The newest-first list shows UTC timestamp, product/SKU, location, movement type, signed quantity, reason, and recorded-by name for authenticated events; it returns up to 200 rows. Legacy seed entries have no actor. Date/actor filters, resulting balance, and movement detail/ID remain future enhancements.
+**Implemented on `/activity` (sign-in required).** Filters are location, movement type, text matching product name, SKU, or reason, recorded-by actor (including legacy entries), and inclusive UTC date range. The newest-first list shows UTC timestamp, product/SKU, location, movement type, signed quantity, reason, and recorded-by name for authenticated events; it returns up to 200 rows. Resulting balance and movement detail/ID remain future enhancements.
 
 - Present an append-oriented movement list with newest first and filters for date range, product/SKU, location, movement type/reason, and actor if available. Include a clear reset action and active-filter chips.
 - Each row: timestamp with timezone/context, product name and SKU, location, signed unit delta (“+12 units” / “−2 units”), resulting balance if the API supplies a trustworthy point-in-time value, reason/reference, actor if available, and stable movement ID in detail view.
@@ -139,5 +139,5 @@ These are in the requirements but not yet specified at business-rule level. Prop
 - A deduction above current on-hand is blocked with the latest available amount.
 - Success and error states are truthful under failed or duplicated requests.
 - Activity history makes product, SKU, location, signed delta, reason, and timestamp easy to scan.
-- Current `/activity` supports location/type/name/SKU/reason filters and displays the latest 200 rows; date and actor filters, resulting balances, and movement detail links remain future enhancements.
+- Current `/activity` supports location/type/name/SKU/reason, actor, and inclusive UTC date filters and displays the latest 200 rows; resulting balances and movement detail links remain future enhancements.
 - Keyboard, screen-reader, contrast, mobile reflow, and focus behavior satisfy the criteria above.

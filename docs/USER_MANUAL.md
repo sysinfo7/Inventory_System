@@ -86,7 +86,7 @@ These are inventory quantity records only. They do not process payments, record 
 
 ## Movement activity
 
-Open `/activity` to see the newest stock movements first. Filter by location, movement type, or text matching product name, SKU, or reason. Results show UTC time, product/SKU, location, movement type, signed units, reason, and the signed-in actor when available, up to 200 matching rows.
+Open `/activity` to see the newest stock movements first. Filter by location, movement type, recorded-by user (or legacy entries without an actor), and text matching product name, SKU, or reason. **From date** and **Through date** are inclusive UTC dates; enter either or both to narrow the time period. If the start date is after the end date, the date filters are cleared and the page explains the correction. Results show UTC time, product/SKU, location, movement type, signed units, reason, and the recorded-by actor when available, up to 200 matching rows.
 
 ## Database stock operation
 

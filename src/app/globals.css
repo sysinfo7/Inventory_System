@@ -196,6 +196,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .status-low-stock span { color: #b18330; }
 .activity-filters { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .activity-filters input { width: 180px; }
+.activity-filter-error { flex-basis: 100%; margin: 0; color: #963f32; font-size: 10px; }
 .activity-clear { color: #477052; font-size: 10px; font-weight: 700; text-decoration: none; }
 .activity-clear:hover { text-decoration: underline; }
 .movement-type { display: inline-flex; border-radius: 999px; background: #eef2ef; padding: 5px 9px; color: #526157; font-size: 9px; font-weight: 700; }

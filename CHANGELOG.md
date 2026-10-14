@@ -2,6 +2,13 @@
 
 Notable project changes are recorded here. Versions follow Semantic Versioning.
 
+## [1.3.0] - 2026-10-13
+
+### Added
+
+- Filter inventory movement history by recorded-by user (including legacy unattributed entries) and inclusive UTC date range.
+- Add time-ordered database indexes for global and actor-filtered activity queries.
+
 ## [1.2.1] - 2026-10-13
 
 ### Fixed

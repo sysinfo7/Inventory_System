@@ -103,6 +103,37 @@ try {
   assert(forbiddenRedirect(editHtml), `Read-only user was not blocked from the product editor (HTTP ${editPage.status}): ${editHtml.slice(-1800)}`);
   assert(forbiddenRedirect(userHtml), `Read-only user was not blocked from user management (HTTP ${userAdmin.status}): ${userHtml.slice(-1800)}`);
 
+  // In CI only, add one attributed movement to the disposable database and verify
+  // the actor/date filters through the signed-in activity page. Local verification
+  // never leaves stock-test data behind.
+  if (process.env.ACTIVITY_FILTER_CI_TESTS === 'true') {
+    const product = await pool.query("SELECT id FROM products WHERE sku = 'DEMO-COFFEE-001' AND active = true");
+    const location = await pool.query("SELECT id FROM locations WHERE name = 'Demo Outlet'");
+    assert(product.rowCount === 1 && location.rowCount === 1, 'Activity filter fixture requires the seeded coffee product and Demo Outlet.');
+    const reason = `AUTH-CHECK-${userId}`;
+    await pool.query(
+      'SELECT record_stock_movement($1::bigint, $2::bigint, 1, $3, $4, $5::uuid, $6::uuid)',
+      [product.rows[0].id, location.rows[0].id, 'receiving', reason, userId, randomUUID()],
+    );
+    const today = new Date().toISOString().slice(0, 10);
+    const attributedParams = new URLSearchParams({ actor: userId, from: today, to: today, q: reason });
+    const attributedActivity = await page(`/activity?${attributedParams}`);
+    const attributedHtml = await attributedActivity.text();
+    assert(attributedActivity.status === 200 && attributedHtml.includes(reason)
+      && attributedHtml.includes(userId) && attributedHtml.includes('1 movement shown'),
+    'Activity actor and inclusive UTC date filters did not return the attributed test movement.');
+    const legacyParams = new URLSearchParams({ actor: 'legacy', q: 'Demo setup' });
+    const legacyActivity = await page(`/activity?${legacyParams}`);
+    const legacyHtml = await legacyActivity.text();
+    assert(legacyActivity.status === 200 && legacyHtml.includes('8 movements shown')
+      && legacyHtml.includes('Legacy entry'), 'Legacy actor filter did not return the eight seeded sample movements.');
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const reversedDates = await page(`/activity?from=${today}&to=${yesterday}`);
+    const reversedHtml = await reversedDates.text();
+    assert(reversedDates.status === 200 && reversedHtml.includes('The start date must be on or before the end date.'),
+      'Reversed activity date filters were not handled safely.');
+  }
+
   // Role changes invalidate existing sessions; sign in again to verify the new grants.
   await pool.query("UPDATE app_users SET role = 'clerk' WHERE id = $1::uuid", [userId]);
   await assertRevokedAndSignInAgain('Changing a role did not revoke its prior session.');
@@ -172,7 +203,7 @@ try {
     throw error;
   } finally { client.release(); }
 
-  console.log('Authentication verified: sign-in, protected cookie, response security headers, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution passed.');
+  console.log(`Authentication verified: sign-in, protected cookie, response security headers, viewer reads, clerk return access, manager-only adjustment access, editor/admin denial, role/deactivation session revocation, login throttling, and actor audit attribution${process.env.ACTIVITY_FILTER_CI_TESTS === 'true' ? ' plus activity actor/date/legacy filters' : ''} passed.`);
 } finally {
   if (cookie) {
     try { await fetch(new URL('/logout', appUrl), { method: 'POST', redirect: 'manual', headers: { origin: appUrl, host: new URL(appUrl).host, cookie } }); } catch { /* The session row is also removed directly below. */ }
