@@ -66,7 +66,7 @@ npm run db:verify-stock
 npm run auth:verify
 ```
 
-GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and end-to-end authentication and permission checks against the built app. Release `v1.4.0` passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38636338783) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38636340456).
+GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and end-to-end authentication and permission checks against the built app. Version 1.5.0 passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38640141612); the release-tag run is pending. Earlier v1.4.0 checks passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38636338783) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38636340456).
 
 ## Security boundary
 
