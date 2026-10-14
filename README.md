@@ -12,7 +12,7 @@ The project follows Semantic Versioning (`MAJOR.MINOR.PATCH`): increment MAJOR f
 
 The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in, role-based permissions, and administrator user management. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys. Earlier migrations and the expanded rollback-only stock/auth checks passed locally, including returns, count corrections, and role visibility. The latest GitHub run predates those additions, so a new CI run is still needed. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys. The expanded rollback-only stock/auth checks passed locally, including returns, count corrections, and role visibility. GitHub Actions passed for the `v1.0.0` release commit on both `main` and the tag. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -64,7 +64,7 @@ npm run db:verify-stock
 npm run auth:verify
 ```
 
-GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. These checks passed in [GitHub Actions run #10](https://github.com/sysinfo7/Inventory_System/actions/runs/38481389156) for commit `835c6b6`.
+GitHub Actions runs lint, typecheck, a production build, database migrations, least-privilege app-role provisioning, stock workflow and competing-deduction checks, and an end-to-end authentication/permission check against the built app. These checks passed for `v1.0.0` on [the main branch](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097632) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097851).
 
 ## Security boundary
 

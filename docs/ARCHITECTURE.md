@@ -122,7 +122,7 @@ The security-definer functions run with `inventory_function_owner` privileges an
 
 ## Inventory audit trail and accounting boundary
 
-GitHub Actions run #10 passed the CI-only competing-deduction check against a disposable database. It verifies that two simultaneous four-unit sales cannot reduce a five-unit balance below zero; see [the run details](https://github.com/sysinfo7/Inventory_System/actions/runs/38481389156). The movement and audit tables can support an inventory history of quantity changes. They do not implement double-entry bookkeeping, inventory valuation policy, period closing, reconciliation, tax calculations, payment handling, or regulatory compliance. Do not present this project as a financial accounting or compliance system.
+GitHub Actions passed the CI-only competing-deduction check against a disposable database for `v1.0.0` on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097632) and [the release tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38491097851). It verifies that two simultaneous four-unit sales cannot reduce a five-unit balance below zero. The movement and audit tables can support an inventory history of quantity changes. They do not implement double-entry bookkeeping, inventory valuation policy, period closing, reconciliation, tax calculations, payment handling, or regulatory compliance. Do not present this project as a financial accounting or compliance system.
 
 ## Screenshot evidence
 
