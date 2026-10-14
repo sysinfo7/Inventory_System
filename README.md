@@ -44,6 +44,8 @@ The local helper creates a separate 256-bit app password in `.env` without displ
 
 `db:verify-stock-concurrency` runs only in CI against its disposable PostgreSQL service. It submits two simultaneous four-unit sales against five units and verifies that one succeeds, the other is rejected, and the remaining balance is one. The uniquely identified test records stay in that disposable CI database.
 
+`purchasing:verify-concurrency` also runs only in CI. It forces two separate receipt sessions to contend for one purchase order and verifies that only one four-unit receipt is committed against five ordered units, with one linked stock movement and the correct partial-receipt status.
+
 ## Project documentation
 
 - [Employer database design](docs/EMPLOYER_DATABASE_DESIGN.md): ER diagram, fields, keys, normalization, relationships, transaction and audit flow.

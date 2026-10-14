@@ -14,6 +14,7 @@
     "db:verify-stock": "node --env-file-if-exists=.env scripts/verify-stock-workflow.mjs",
     "db:verify-stock-concurrency": "node --env-file-if-exists=.env scripts/verify-stock-concurrency.mjs",
     "purchasing:verify": "node --env-file-if-exists=.env scripts/verify-purchasing-workflow.mjs",
+    "purchasing:verify-concurrency": "node --env-file-if-exists=.env scripts/verify-purchasing-concurrency.mjs",
     "auth:bootstrap": "node --env-file-if-exists=.env scripts/bootstrap-admin.mjs",
     "auth:reset-admin-local": "node --env-file-if-exists=.env scripts/reset-local-admin.mjs",
     "auth:seed-test-users": "node --env-file-if-exists=.env scripts/seed-permission-test-users.mjs",

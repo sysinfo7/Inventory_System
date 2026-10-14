@@ -115,7 +115,7 @@ npm run auth:verify
 
 This end-to-end check creates a unique temporary account and verifies sign-in, cookie and response-header protections, read-only/clerk/manager permissions, forbidden writes, logout revocation, repeated-login throttling and its retry interval, actor attribution, and the runtime role's restricted access to the rate-limit table. The temporary account is deleted with `DATABASE_URL`; an expired hashed throttle bucket is cleaned by a later sign-in attempt. CI additionally changes the temporary account password and verifies old-password rejection, confirmation checks, security-event recording, and session revocation in its disposable database.
 
-The concurrency script is intentionally CI-only and rejects execution unless `CI=true`. It creates a uniquely named product with five units in the disposable GitHub Actions PostgreSQL service, submits two simultaneous four-unit sales on separate connections, and verifies that one succeeds while the other receives an insufficient-stock error. Its fixture remains in the disposable CI database for the duration of that job.
+The stock concurrency script is intentionally CI-only and rejects execution unless `CI=true`. It creates a uniquely named product with five units in the disposable GitHub Actions PostgreSQL service, submits two simultaneous four-unit sales on separate connections, and verifies that one succeeds while the other receives an insufficient-stock error. Its fixture remains in the disposable CI database for the duration of that job.
 
 ## Verify supplier and purchase-order workflows
 
@@ -125,7 +125,9 @@ With migrations current and the runtime login provisioned, run:
 npm run purchasing:verify
 ```
 
-The verifier requires local `APP_DATABASE_URL`, exercises supplier normalization and role checks, draft editing without stock effects, submission, partial/final receipt, identical retry, rejection cases, cancellation with preserved receipts, actor/audit linkage, and direct-write grants. It runs in one database transaction and rolls all generated users/products/orders/movements back on success or failure. It does not currently run a multi-connection purchasing race; concurrent receipt correctness is enforced by parent-order row locks and needs separate committed disposable-database coverage.
+The verifier requires local `APP_DATABASE_URL`, exercises supplier normalization and role checks, draft editing without stock effects, submission, partial/final receipt, identical retry, rejection cases, cancellation with preserved receipts, actor/audit linkage, and direct-write grants. It runs in one database transaction and rolls all generated users/products/orders/movements back on success or failure.
+
+The separate-session receipt race verifier runs only in CI with `CI=true` and loopback database URLs. It creates a temporary manager, supplier, product, and five-unit order in GitHub Actions' disposable PostgreSQL database. A third connection holds the order lock until both runtime receipt sessions are waiting, then releases them together. The verifier expects one four-unit receipt to commit and the competing four-unit receipt to be rejected as an over-receipt; it checks the final order status, one receipt, one linked stock movement, and a balance of four. Fixtures remain in the disposable CI database for the duration of the job.
 
 ## Back up the local database
 

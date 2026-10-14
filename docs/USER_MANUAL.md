@@ -94,7 +94,7 @@ To exercise the full purchasing workflow against local PostgreSQL and roll back 
 npm run purchasing:verify
 ```
 
-The script checks role gates, supplier-name normalization, draft/no-stock behavior, partial and final receipts, identical retry, over-receipt and invalid-input rejection, cancellation history, actor attribution, and database grants. It will refuse to connect to a non-local database. The verifier is wired into CI; the local verifier, signed-in browser walkthrough, and full GitHub Actions runs for [main commit aa5fd6f](https://github.com/sysinfo7/Inventory_System/actions/runs/38650403985) and [tag v1.6.0](https://github.com/sysinfo7/Inventory_System/actions/runs/38652134590) passed. Purchasing-page screenshots and a dedicated simultaneous separate-session receipt test remain future work.
+The script checks role gates, supplier-name normalization, draft/no-stock behavior, partial and final receipts, identical retry, over-receipt and invalid-input rejection, cancellation history, actor attribution, and database grants. It will refuse to connect to a non-local database. GitHub Actions also runs `purchasing:verify-concurrency` against its disposable PostgreSQL service; that test holds the order lock until two receipt sessions are waiting, then confirms only one of two competing four-unit receipts is accepted against a five-unit order. The test leaves fictional fixtures only in that disposable CI database. Purchasing-page screenshots are still to be added to this manual.
 
 ## Stock on hand and recording a movement
 
