@@ -2,6 +2,12 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
+**Project version: 1.0.0** — the first portfolio release.
+
+## Versioning
+
+The project follows Semantic Versioning (`MAJOR.MINOR.PATCH`): increment MAJOR for incompatible changes, MINOR for backward-compatible features, and PATCH for backward-compatible fixes. Changes made before the first stable release use `0.x.y`; `1.0.0` marks the initial feature-complete portfolio release. Keep `package.json` and `package-lock.json` versions in sync, and create a Git tag such as `v1.0.0` when publishing each release. Commit hashes identify source revisions but are not release numbers.
+
 ## Current status
 
 The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, sign-in, role-based permissions, and administrator user management. Authenticated product and stock changes record their actor in the audit trail. Application permission roles are administrator, manager, clerk, and read-only.
