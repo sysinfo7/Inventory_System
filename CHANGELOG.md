@@ -4,7 +4,7 @@
 
 ### Documentation
 
-- Add employer-manual screenshots and instructions for purchase-order drafts and submission.
+- Add employer-manual screenshots and instructions for purchase-order drafts, submission, and receiving.
 
 ## [1.6.1] - 2026-10-14
 
