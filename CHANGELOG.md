@@ -4,7 +4,7 @@
 
 ### Documentation
 
-- Complete employer-manual purchasing walkthrough with order-register, draft, submission, and receiving screenshots.
+- Complete employer-manual purchasing walkthrough with order-register, draft, submission, and receiving screenshots; refresh project version and roadmap references.
 
 ## [1.6.1] - 2026-10-14
 

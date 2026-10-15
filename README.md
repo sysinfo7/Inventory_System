@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.6.0** — adds quantity-only supplier purchasing, purchase-order receiving linked atomically to stock history, and role-controlled cancellation.
+**Project version: 1.6.1** — includes quantity-only supplier purchasing, atomic purchase-order receiving, role-controlled cancellation, and responsive order details.
 
 ## Versioning
 
@@ -14,7 +14,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, suppliers, quantity-only purchase orders, sign-in with persistent rate limiting, role-based permissions, administrator user management, and self-service password changes. Receiving a purchase order creates linked receipt records and stock movements in one transaction. Authenticated product and stock changes record their actor in the inventory audit trail; password changes use a separate security event log. Movement history filters by location, type, product/reason, actor, and inclusive UTC date range. Application permission roles are administrator, manager, clerk, and read-only. The purchasing feature does not include supplier costs, currency, invoices, or accounting entries.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke sessions when an account role changes or it is deactivated; migration 015 adds activity-filter indexes; migrations 016–018 log password changes and administrator resets, require temporary credentials to be replaced, and revoke sessions; migrations 019–021 add purchasing records, transaction functions, and the JSONB validation helper. Authenticated users can change their password after confirming their current password. See [SETUP_STATUS.md](SETUP_STATUS.md) for evidence and remaining checks.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke sessions when an account role changes or it is deactivated; migration 015 adds activity-filter indexes; migrations 016–018 log password changes and administrator resets, require temporary credentials to be replaced, and revoke sessions; migrations 019–021 add purchasing records, transaction functions, and the JSONB validation helper. Authenticated users can change their password after confirming their current password. See [SETUP_STATUS.md](SETUP_STATUS.md) for verification evidence and [the employer database design](docs/EMPLOYER_DATABASE_DESIGN.md) for the schema diagram and explanation.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -82,4 +82,4 @@ The local PostgreSQL port and Next.js development server bind to loopback. The a
 
 1. Email-based password recovery, account invitations, and a persistent account lockout policy.
 2. A production security review and deployment configuration; keep the verified backup local unless a secure off-checkout destination is chosen.
-3. Add the remaining purchasing screenshots to the manual, then complete deployment work.
+3. Prepare a production deployment plan and complete an independent security review before exposing the app outside the local machine.
