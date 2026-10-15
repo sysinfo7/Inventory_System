@@ -6,6 +6,10 @@
 
 - Bound sign-in, password-change, and administrator password-reset form bodies to 16 KiB. Streamed oversized posts are rejected before authentication, and unsupported form content types are not parsed.
 
+### Changed
+
+- Show purchase-order line details as responsive cards at tablet widths so all product fields remain visible without horizontal scrolling.
+
 ### Testing
 
 - Pass the CI-only receipt race test on [main commit 6f6abc6](https://github.com/sysinfo7/Inventory_System/actions/runs/38654409673): two sessions contend on one order and only one over-receipt attempt commits.
