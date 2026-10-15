@@ -163,4 +163,4 @@ GitHub Actions passed the CI-only competing-deduction check against a disposable
 
 ## Screenshot evidence
 
-The user manual embeds current screenshots captured from the running local app, including overview, catalog, product validation, stock operations, activity history, and the permissions matrix. A narrow mobile viewport and a successful stock-write confirmation remain uncaptured. See [the user manual](USER_MANUAL.md) for the images and the exact coverage notes. All displayed business records are fictional; captures must not expose credentials or user email addresses.
+The user manual embeds screenshots captured from the running local app, including overview, catalog, product validation, stock operations, activity history, permissions, and the purchase-order register and lifecycle. See [the user manual](USER_MANUAL.md) for the images and coverage notes. All displayed business records are fictional; captures must not expose credentials or user email addresses.

@@ -57,7 +57,7 @@ For an existing checkout/database, the local upgrade wrapper starts PostgreSQL i
 .\scripts\setup-database.ps1
 ```
 
-This applies pending numbered migrations and checks the connection. Migrations through 018 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
+This applies pending numbered migrations and checks the connection. Migrations through 021 and the connection have been verified in the local database. The wrapper does not back up the database before applying changes; make a backup first if the data matters.
 
 ## Provision the application login
 
