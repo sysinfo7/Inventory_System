@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-14
+
 ### Security
 
 - Bound sign-in, password-change, and administrator password-reset form bodies to 16 KiB. Streamed oversized posts are rejected before authentication, and unsupported form content types are not parsed.
@@ -14,6 +16,7 @@
 
 - Pass the CI-only receipt race test on [main commit 6f6abc6](https://github.com/sysinfo7/Inventory_System/actions/runs/38654409673): two sessions contend on one order and only one over-receipt attempt commits.
 - Extend the local auth verifier to reject streamed sign-in bodies over 16 KiB and unsupported form content types before authentication.
+- Pass GitHub Actions quality checks for [commit e4780fa](https://github.com/sysinfo7/Inventory_System/actions/runs/38660367771). Browser verification at a 697 px viewport confirms the purchase-order line items fit without horizontal overflow.
 
 ## [1.6.0] - 2026-10-14
 
