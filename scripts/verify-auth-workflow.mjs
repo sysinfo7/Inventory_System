@@ -182,6 +182,7 @@ try {
   const stock = await page('/stock');
   const stockHtml = await stock.text();
   const activity = await page('/activity');
+  await activity.arrayBuffer();
   const suppliersPage = await page('/suppliers');
   const suppliersHtml = await suppliersPage.text();
   const purchasingPage = await page('/purchase-orders');
