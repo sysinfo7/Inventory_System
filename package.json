@@ -1,6 +1,6 @@
 {
   "name": "inventory-system",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
@@ -11,6 +11,8 @@
     "db:migrate": "node --env-file-if-exists=.env scripts/db.mjs migrate",
     "db:check": "node --env-file-if-exists=.env scripts/db.mjs check",
     "db:provision-app": "node --env-file-if-exists=.env scripts/provision-app-role.mjs",
+    "db:verify-demo-seed": "node --env-file-if-exists=.env scripts/verify-demo-seed.mjs",
+    "db:prepare:neon-demo": "node --env-file=.env.neon-demo scripts/prepare-neon-demo.mjs",
     "db:verify-stock": "node --env-file-if-exists=.env scripts/verify-stock-workflow.mjs",
     "db:verify-stock-concurrency": "node --env-file-if-exists=.env scripts/verify-stock-concurrency.mjs",
     "purchasing:verify": "node --env-file-if-exists=.env scripts/verify-purchasing-workflow.mjs",

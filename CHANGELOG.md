@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-10-14
+
+### Added
+
+- Seed clean databases with fictional supplier purchasing examples for the public employer demo.
+- Add a guarded Neon preparation command that applies migrations, provisions the least-privilege runtime role, and verifies the demo dataset.
+- Verify the seeded inactive actor, audit events, receipt-to-movement link, and resulting stock balance in CI.
+
+### Documentation
+
+- Add Vercel and Neon setup instructions with separate migration/runtime credentials and production-only demo-mode guidance.
+
 ## [1.7.0] - 2026-10-14
 
 ### Added

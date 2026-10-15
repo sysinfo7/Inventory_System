@@ -10,6 +10,7 @@ const adminUrl = new URL(adminConnectionString);
 const appUrl = new URL(appConnectionString);
 const appPassword = decodeURIComponent(appUrl.password);
 const databaseName = decodeURIComponent(adminUrl.pathname.slice(1));
+const remoteProvisioning = process.env.ALLOW_REMOTE_DB_PROVISIONING === 'true';
 if (appUrl.username !== 'inventory_runtime') {
   throw new Error('APP_DATABASE_URL must use the inventory_runtime role name.');
 }
@@ -19,12 +20,23 @@ if (appPassword === decodeURIComponent(adminUrl.password)) {
 if (!/^[a-zA-Z0-9._~-]{32,}$/.test(appPassword)) {
   throw new Error('Use a distinct URL-safe app password with at least 32 characters.');
 }
-if (adminUrl.hostname !== appUrl.hostname || adminUrl.port !== appUrl.port
+const normalizedHost = (hostname) => hostname.replace(/-pooler(?=\.)/, '');
+if (normalizedHost(adminUrl.hostname) !== normalizedHost(appUrl.hostname)
+    || (adminUrl.port || '5432') !== (appUrl.port || '5432')
     || decodeURIComponent(appUrl.pathname.slice(1)) !== databaseName) {
-  throw new Error('The app and migration URLs must target the same local database server and database.');
+  throw new Error('The app and migration URLs must target the same database endpoint and database.');
 }
-if (!['localhost', '127.0.0.1', '::1'].includes(adminUrl.hostname)) {
-  throw new Error('This development provisioning script only accepts a local database host.');
+const localHosts = ['localhost', '127.0.0.1', '::1'];
+if (localHosts.includes(adminUrl.hostname) || localHosts.includes(appUrl.hostname)) {
+  if (remoteProvisioning) throw new Error('Remote provisioning mode cannot target a local database.');
+} else {
+  const sslRequired = (url) => ['require', 'verify-ca', 'verify-full'].includes(url.searchParams.get('sslmode'));
+  if (!remoteProvisioning || !adminUrl.hostname.endsWith('.neon.tech') || !appUrl.hostname.endsWith('.neon.tech')) {
+    throw new Error('Remote provisioning requires explicit Neon-only opt-in.');
+  }
+  if (!sslRequired(adminUrl) || !sslRequired(appUrl)) {
+    throw new Error('Both Neon connection URLs must require TLS with sslmode=require or stronger.');
+  }
 }
 
 const client = new pg.Client({ connectionString: adminConnectionString });
@@ -103,7 +115,7 @@ try {
       || role.rolbypassrls || role.granted_role !== 'inventory_app') {
     throw new Error('Runtime role verification failed; inspect inventory_runtime before starting the app.');
   }
-  console.log('Least-privilege inventory_runtime login is provisioned for the local inventory_app role.');
+  console.log(`Least-privilege inventory_runtime login is provisioned for the ${remoteProvisioning ? 'Neon demo' : 'local'} inventory_app role.`);
 } finally {
   await client.end();
 }

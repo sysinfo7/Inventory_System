@@ -10,6 +10,7 @@
 ## Implemented application behavior
 
 - Version 1.7.0 adds opt-in anonymous employer-demo browsing behind `PUBLIC_DEMO_MODE=true`. The flag is off by default; public pages use only the viewer read allowlist, while mutation and account routes continue to require authenticated permissions. Supplier contact/private-note fields are hidden, activity and receipt actors are anonymized, and draft/cancelled purchase orders are excluded from public lists and direct detail requests. CI now runs a dedicated public-mode route and mutation-endpoint verifier. Public deployment must use a separate fictional-only database.
+- Version 1.7.1 prepares Vercel + Neon deployment. Migration 022 adds a fictional supplier, a completed order with linked stock receipt, an open submitted order, and one inactive synthetic audit identity. `npm run db:prepare:neon-demo` accepts only TLS Neon URLs, requires a direct owner URL plus a pooled runtime URL, refuses nonempty/unrelated targets, applies migrations, provisions `inventory_runtime`, and verifies the seed. This release is being prepared; CI and hosted setup are still pending.
 
 - Application sign-in uses database-backed app users, salted scrypt password hashes, opaque hashed server sessions, and server-enforced Administrator, Manager, Clerk, and Read-only roles. New product and stock writes use the authenticated account as audit actor. Migrations 008-010 add the account/session schema, actor-aware product write function, and actor foreign keys.
 - Initial administrator and optional random-password test accounts are created by local-only, documented scripts; test accounts are opt-in.
@@ -65,9 +66,10 @@
 - Migrations 016–018 were applied locally after the clean-reset rehearsal. `npm run db:check`, `npm run db:verify-stock`, `npm run auth:verify`, `npm run lint`, and `npm run typecheck` passed. Password-change flows passed locally, including administrator/manager permission checks, forced replacement, event actor attribution, and session revocation. GitHub Actions run [38640141612](https://github.com/sysinfo7/Inventory_System/actions/runs/38640141612) passed on main commit `eba62e7`, including production build, migrations 001–018, stock checks, reset permissions, forced replacement, audit attribution, session revocation, and the concurrent login/reset scenario. Tag verification will run after `v1.5.0` is pushed.
 - The local v1.5.0 production build attempt hit the known Windows sandbox denial when Turbopack tried to create a junction below `.next`. GitHub Actions passed lint, typecheck, production build, migrations, stock and concurrency verification, app startup, and authentication/permission checks for commit `81c1c1e` in [run 38632923303](https://github.com/sysinfo7/Inventory_System/actions/runs/38632923303); the final `v1.4.0` documentation commit also passed on [main](https://github.com/sysinfo7/Inventory_System/actions/runs/38636338783) and [the tag](https://github.com/sysinfo7/Inventory_System/actions/runs/38636340456).
 
-## Owner's next local steps
+## Owner's next steps
 
-1. Keep the newly verified dump in the ignored `backups/` directory; an off-checkout copy can be added when you choose a destination.
-2. Sign in again at `http://127.0.0.1:3000/login`; the reset recreated the database and invalidated all prior sessions.
+1. Push the 1.7.1 deployment preparation changes so GitHub Actions can verify them; create the release tag only after CI passes.
+2. Create/sign in to Vercel and Neon accounts, then initialize a new, empty Neon project by following [the deployment guide](docs/DEPLOYMENT_VERCEL_NEON.md). Keep connection strings private; do not send them in chat.
+3. Import the repository into Vercel, set only `APP_DATABASE_URL` (pooled runtime role) and `PUBLIC_DEMO_MODE=true`, and verify the public pages listed in the guide.
 
-Keep the app local and use fictional data; email-based password recovery, persistent account lockout, and production security configuration remain outstanding.
+The hosted site is an anonymous, read-only portfolio demo containing fictional data. Keep the local app and database private for any non-demo information. Email-based password recovery, persistent account lockout, and a production security review remain outstanding for any write-enabled operational deployment.

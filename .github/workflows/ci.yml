@@ -32,6 +32,7 @@ jobs:
       - run: npm run db:migrate
       - run: npm run db:check
       - run: npm run db:provision-app
+      - run: npm run db:verify-demo-seed
       - run: npm run db:verify-stock
       - run: npm run db:verify-stock-concurrency
       - run: npm run purchasing:verify

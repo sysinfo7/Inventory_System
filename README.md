@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.7.0** — includes an opt-in anonymous, read-only employer demo with privacy-limited supplier and activity views.
+**Project version: 1.7.1** — includes an opt-in anonymous, read-only employer demo with fictional purchasing fixtures and a guarded Vercel/Neon setup path.
 
 ## Versioning
 
@@ -12,9 +12,9 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Current status
 
-The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, suppliers, quantity-only purchase orders, sign-in with persistent rate limiting, role-based permissions, administrator user management, and self-service password changes. An optional public employer-demo mode grants anonymous access to a limited read-only set of pages; it is disabled by default and must use a separate database containing fictional data only. Receiving a purchase order creates linked receipt records and stock movements in one transaction. Authenticated product and stock changes record their actor in the inventory audit trail; password changes use a separate security event log. Movement history filters by location, type, product/reason, actor, and inclusive UTC date range. Application permission roles are administrator, manager, clerk, and read-only. The purchasing feature does not include supplier costs, currency, invoices, or accounting entries.
+The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, suppliers, quantity-only purchase orders, sign-in with persistent rate limiting, role-based permissions, administrator user management, and self-service password changes. An optional public employer-demo mode grants anonymous access to a limited read-only set of pages; it is disabled by default and must use a separate database containing fictional data only. Migration 022 seeds a fictional supplier, a completed purchase order and linked receipt, and an open order for fresh demo databases. Receiving a purchase order creates linked receipt records and stock movements in one transaction. Authenticated product and stock changes record their actor in the inventory audit trail; password changes use a separate security event log. Movement history filters by location, type, product/reason, actor, and inclusive UTC date range. Application permission roles are administrator, manager, clerk, and read-only. The purchasing feature does not include supplier costs, currency, invoices, or accounting entries.
 
-Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke sessions when an account role changes or it is deactivated; migration 015 adds activity-filter indexes; migrations 016–018 log password changes and administrator resets, require temporary credentials to be replaced, and revoke sessions; migrations 019–021 add purchasing records, transaction functions, and the JSONB validation helper. Authenticated users can change their password after confirming their current password. See [SETUP_STATUS.md](SETUP_STATUS.md) for verification evidence and [the employer database design](docs/EMPLOYER_DATABASE_DESIGN.md) for the schema diagram and explanation.
+Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke sessions when an account role changes or it is deactivated; migration 015 adds activity-filter indexes; migrations 016–018 log password changes and administrator resets, require temporary credentials to be replaced, and revoke sessions; migrations 019–021 add purchasing records, transaction functions, and the JSONB validation helper; migration 022 adds fictional purchasing demo records with an inactive synthetic audit actor. Authenticated users can change their password after confirming their current password. See [SETUP_STATUS.md](SETUP_STATUS.md) for verification evidence, [the employer database design](docs/EMPLOYER_DATABASE_DESIGN.md) for the schema diagram, and [the Vercel/Neon deployment guide](docs/DEPLOYMENT_VERCEL_NEON.md) for isolated hosted setup.
 
 The inventory audit trail records product changes and quantity movements. It is not a full financial accounting ledger and does not establish regulatory or accounting compliance.
 
@@ -52,6 +52,7 @@ The local helper creates a separate 256-bit app password in `.env` without displ
 - [Architecture](docs/ARCHITECTURE.md): data model, stock transaction flow, and implementation boundaries.
 - [Database operations](docs/DATABASE.md): migrations, database commands, backup, restore, and clean reset.
 - [Security](docs/SECURITY.md): implemented safeguards, limitations, and work required before deployment.
+- [Vercel + Neon deployment](docs/DEPLOYMENT_VERCEL_NEON.md): safe fictional-only employer-demo hosting setup and verification.
 - [User manual](docs/USER_MANUAL.md): local product catalog walkthrough, database operations, and screenshot checklist.
 - [Requirements](docs/REQUIREMENTS.md): retail scope and initial milestone.
 - [UI/UX specification](docs/agents/retail-ui-spec.md): proposed workflows and accessibility criteria.
@@ -67,6 +68,7 @@ npm run build
 npm run db:migrate
 npm run db:check
 npm run db:provision-app
+npm run db:verify-demo-seed
 npm run db:verify-stock
 npm run purchasing:verify
 npm run auth:verify
@@ -81,4 +83,5 @@ The local PostgreSQL port and Next.js development server bind to loopback. The a
 ## Future work
 
 1. Email-based password recovery, account invitations, and a persistent account lockout policy.
-2. A production security review and deployment configuration; keep the verified backup local unless a secure off-checkout destination is chosen.
+2. Complete the Vercel and Neon account setup and publish the fictional-only employer demo using [the deployment guide](docs/DEPLOYMENT_VERCEL_NEON.md).
+3. A production security review before using real operational data; keep the verified local backup protected unless a secure off-checkout destination is chosen.
