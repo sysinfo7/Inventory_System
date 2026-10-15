@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.7.1** — includes an opt-in anonymous, read-only employer demo with fictional purchasing fixtures and a guarded Vercel/Neon setup path.
+**Project version: 1.7.2** — includes an opt-in anonymous, read-only employer demo with fictional purchasing fixtures and a hidden-input Vercel/Neon setup path.
 
 ## Versioning
 

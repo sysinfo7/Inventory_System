@@ -7,29 +7,16 @@ The database migrations seed two fictional locations, three products, stock acti
 ## 1. Create a dedicated Neon project
 
 1. Create a new Neon project named `inventory-system-employer-demo`. Use the project’s empty default database or create a fresh empty database for the demo. Do not point this setup at an existing project containing personal or business data.
-2. In Neon, copy the **direct** connection string for the database owner. Keep it private; it is used only from this computer to apply migrations and create the runtime role.
-3. Generate a separate runtime password in PowerShell from the repository folder:
+2. After setting the owner password, open **Connect** and copy both the **direct** and **pooled** owner URLs. Keep them private; they are used only from this computer to initialize the database and provision the runtime role.
+3. From the repository folder, run the local helper:
 
    ```powershell
-   node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+   .\scripts\write-neon-demo-env.ps1
    ```
 
-   Copy the output somewhere private. It is URL-safe and will not appear in the shell command history.
-4. Copy Neon's **pooled** connection string, then change its username to `inventory_runtime` and its password to the generated runtime password. Keep the `-pooler` host and `sslmode=require` query option. Use the same database name as the direct URL.
-5. Create the local, ignored connection file and edit it:
+   Paste the fresh direct and pooled URLs at the hidden prompts. The helper validates the Neon endpoints, TLS settings, and matching database, generates a new URL-safe password for `inventory_runtime`, and writes `.env.neon-demo`. It does not print the credentials. That file is ignored by Git.
 
-   ```powershell
-   notepad .env.neon-demo
-   ```
-
-   Add these two lines with your own connection values. Do not paste them into chat or commit this file:
-
-   ```dotenv
-   DATABASE_URL=postgresql://OWNER:OWNER_PASSWORD@ep-example.region.aws.neon.tech/neondb?sslmode=require
-   APP_DATABASE_URL=postgresql://inventory_runtime:YOUR_GENERATED_PASSWORD@ep-example-pooler.region.aws.neon.tech/neondb?sslmode=require
-   ```
-
-   `.env.neon-demo` is ignored by Git. The preparation command verifies that both URLs target the same Neon project/database, use TLS, and use the pooled endpoint for app traffic. It refuses local and non-Neon hosts, and it refuses to initialize a nonempty database without this project's migration ledger.
+   The preparation command also refuses local and non-Neon hosts, and refuses to initialize a nonempty database without this project's migration ledger.
 
 ## 2. Initialize and verify the demo database
 

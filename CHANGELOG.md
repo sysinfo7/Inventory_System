@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-10-15
+
+### Security
+
+- Add a hidden-input Neon setup helper that validates direct and pooled URLs, generates a separate runtime password, and writes only to the Git-ignored local config file.
+
+### Documentation
+
+- Replace manual connection-string editing with the validated local setup helper.
+
 ## [1.7.1] - 2026-10-14
 
 ### Added
