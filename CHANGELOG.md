@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Documentation
+
+- Add employer-manual screenshots and instructions for a saved purchase-order draft and its editable form.
+
 ## [1.6.1] - 2026-10-14
 
 ### Security

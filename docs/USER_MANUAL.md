@@ -4,7 +4,7 @@
 
 The app includes a local product catalog, multi-location stock page, supplier directory, purchase orders, activity history, sign-in, and role-based permissions. The catalog supports search, active/inactive filters, add/edit, and deactivate. `/stock` shows current balances for active products at the selected location, flags quantities at or below each product's reorder point, and provides receiving, customer-return, sale-deduction, and manager/admin count-adjustment forms. Purchasing tracks supplier orders and receipts by quantity; it does not store supplier costs, currency, invoices, or payment/accounting records. `/activity` filters recent signed movements and shows the actor for newly authenticated changes. Administrators can create, deactivate, and reset accounts with Administrator, Manager, Clerk, or Read-only roles. New accounts and reset accounts must replace their temporary password before protected inventory access. Changing a role or deactivating an account revokes all of that user's sign-in sessions. The overview page links to the main workflows.
 
-Migrations through 021 are applied to the local database after the October 14 clean reset, and the rollback-only purchasing verifier passed. The reset seeded two locations, three fictional products, and eight sample movements. The one-off guide receipt shown in the screenshots was removed by the reset and is no longer in the current activity history. The live purchasing walkthrough then added a fictional supplier and completed `PO-00000007` for five coffee units delivered to Demo Outlet: two units were recorded in the first receipt and three in the second. Demo Outlet now has 15 coffee units; Demo Store remains at 7. The two receipt movements are linked to the order and attributed to the signed-in administrator. Seed movement actors are blank; new app-recorded changes identify the signed-in user. The purchase-order detail screenshot is included below; screenshots of the order list, draft form, and receipt form remain to be added.
+Migrations through 021 are applied to the local database after the October 14 clean reset, and the rollback-only purchasing verifier passed. The reset seeded two locations, three fictional products, and eight sample movements. The one-off guide receipt shown in the screenshots was removed by the reset and is no longer in the current activity history. The live purchasing walkthrough then added a fictional supplier and completed `PO-00000007` for five coffee units delivered to Demo Outlet: two units were recorded in the first receipt and three in the second. Demo Outlet now has 15 coffee units; Demo Store remains at 7. The two receipt movements are linked to the order and attributed to the signed-in administrator. Seed movement actors are blank; new app-recorded changes identify the signed-in user. A separate saved draft, `PO-00000018`, contains three fictional Summit Steel Water Bottles for Demo Store with an expected delivery date of October 23, 2026; drafts do not affect stock. The manual includes completed-order and draft screenshots; order-list and receipt-form screenshots are still needed.
 
 ## Start the local project
 
@@ -94,7 +94,7 @@ To exercise the full purchasing workflow against local PostgreSQL and roll back 
 npm run purchasing:verify
 ```
 
-The script checks role gates, supplier-name normalization, draft/no-stock behavior, partial and final receipts, identical retry, over-receipt and invalid-input rejection, cancellation history, actor attribution, and database grants. It will refuse to connect to a non-local database. GitHub Actions also runs `purchasing:verify-concurrency` against its disposable PostgreSQL service; that test holds the order lock until two receipt sessions are waiting, then confirms only one of two competing four-unit receipts is accepted against a five-unit order. The test leaves fictional fixtures only in that disposable CI database. The completed-order detail capture is included below. Screenshots of the order list, draft form, and receipt form remain to be added.
+The script checks role gates, supplier-name normalization, draft/no-stock behavior, partial and final receipts, identical retry, over-receipt and invalid-input rejection, cancellation history, actor attribution, and database grants. It will refuse to connect to a non-local database. GitHub Actions also runs `purchasing:verify-concurrency` against its disposable PostgreSQL service; that test holds the order lock until two receipt sessions are waiting, then confirms only one of two competing four-unit receipts is accepted against a five-unit order. The test leaves fictional fixtures only in that disposable CI database. The completed-order detail and draft captures are included below; screenshots of the order list and receipt form remain to be added.
 
 ## Stock on hand and recording a movement
 
@@ -157,6 +157,8 @@ These captures show the running local application with fictional demo data. They
 
 ![Stock receipt form in a narrow mobile viewport](screenshots/stock-mobile.jpg)
 
+These narrow-screen images document the stock receiving layout and its success state. The one-unit guide receipt they show was removed during the clean database reset; it is not part of the seed data.
+
 ![Successful one-unit stock receipt confirmation in a narrow mobile viewport](screenshots/stock-confirmation.jpg)
 
 ![Filtered inventory movement history](screenshots/activity.jpg)
@@ -172,4 +174,12 @@ These captures show the running local application with fictional demo data. They
 
 This fictional example shows `PO-00000007` completed after two receipts totaling five coffee units at Demo Outlet. The activity link opens the movements connected to the receipts.
 
-The two new captures show the narrow mobile layout and its success state. One clearly labeled demo receipt was recorded locally to capture the confirmation and actor attribution; the append-only movement remains in the current local history and is not included in seed migrations. Never include credentials or account email addresses in future captures.
+![Saved draft purchase order with no stock change](screenshots/purchase-order-draft-saved.png)
+
+`PO-00000018` is a saved three-unit draft for Summit Steel Water Bottle at Demo Store. Its expected delivery date is October 23, 2026. Saving a draft records the order but leaves on-hand inventory unchanged.
+
+![Purchase order draft editor before submission](screenshots/purchase-order-draft-form.png)
+
+The editor lets an authorized user change supplier, destination, expected delivery, notes, and ordered quantities before submission. Submitting locks these details; stock changes only when a receipt is posted.
+
+Screenshots of the purchase-order register and receiving form remain to be added. Never include credentials or account email addresses in future captures.
