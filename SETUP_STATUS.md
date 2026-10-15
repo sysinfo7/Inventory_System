@@ -36,6 +36,8 @@
 
 ## Verification evidence
 
+- Employer-demo hosting preparation: Neon migrations 001–022 applied, `inventory_runtime` role flags and grants were verified, and the runtime connection read the expected fictional seed with no active accounts. The latest GitHub Actions quality workflow passed lint, typecheck, production build, migrations, inventory/purchasing/auth checks, and public-demo protections for [main commit b80f9e2](https://github.com/sysinfo7/Inventory_System/actions/runs/38690343578). A streamed-page test was made sequential after its first production-run failure; the corrected workflow passed.
+
 - Local recheck after the documentation refresh: `npm run lint`, `npm run typecheck`, `npm audit --omit=dev` (zero reported production dependency vulnerabilities), `npm run db:check`, `npm run db:verify-stock`, `npm run purchasing:verify`, `npm run auth:verify`, and `git diff --check` all passed. The stock and purchasing verifiers rolled back their test data. The repository was clean after commit `d79eab7` before recording this verification note.
 - Authentication hardening: sign-in, self-service password-change, and administrator-reset handlers now read only URL-encoded form bodies and enforce a 16 KiB streaming limit. `npm run auth:verify` confirms oversized streamed sign-in and unsupported content types are rejected; lint and typecheck passed. `npm run db:check`, rollback-only stock and purchasing verifiers, and `npm audit --omit=dev` also passed during this review; npm reported zero production dependency vulnerabilities.
 - Purchasing verification: `npm run typecheck`, `npm run lint`, both verifier syntax checks, and `git diff --check` passed. The owner applied migrations 019–021. `npm run db:check`, `npm run purchasing:verify`, and `npm run auth:verify` passed; automated purchase-order fixtures were rolled back. The verifier covers normalized supplier names, role boundaries, order lifecycle, partial/final receipt, exact retry, over-receipt and inactive-product rejection, cancellation, audit actor, stock movement linkage, and restricted grants. A live admin browser walkthrough verified the persisted sample PO and both receipt events; Demo Outlet increased from 10 to 15 coffee units while Demo Store remained at 7. The CI-only race verifier forces two separate receipt sessions to wait on one order row and checks that only one receipt and movement persist. The complete GitHub Actions workflow passed, including the production build and race test, on [main commit 6f6abc6](https://github.com/sysinfo7/Inventory_System/actions/runs/38654409673). The manual now includes completed-order, draft, submitted-order, receipt-form, and order-register screenshots.
@@ -68,7 +70,7 @@
 
 ## Owner's next steps
 
-1. Push the 1.7.2 setup changes so GitHub Actions can verify them; create the release tag only after CI passes.
+1. Push the final documentation update, wait for its GitHub Actions run, then publish tag `v1.7.2` after CI succeeds.
 2. Import `sysinfo7/Inventory_System` into Vercel and set `APP_DATABASE_URL` from the local ignored config plus `PUBLIC_DEMO_MODE=true` for Production and Preview, following [the deployment guide](docs/DEPLOYMENT_VERCEL_NEON.md). Keep the owner URL private and off Vercel.
 3. Open the deployed URL and verify the anonymous read-only pages, order details, hidden supplier contact data, and protected routes in the guide.
 
