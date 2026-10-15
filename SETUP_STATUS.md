@@ -10,7 +10,7 @@
 ## Implemented application behavior
 
 - Version 1.7.0 adds opt-in anonymous employer-demo browsing behind `PUBLIC_DEMO_MODE=true`. The flag is off by default; public pages use only the viewer read allowlist, while mutation and account routes continue to require authenticated permissions. Supplier contact/private-note fields are hidden, activity and receipt actors are anonymized, and draft/cancelled purchase orders are excluded from public lists and direct detail requests. CI now runs a dedicated public-mode route and mutation-endpoint verifier. Public deployment must use a separate fictional-only database.
-- Version 1.7.2 prepares Vercel + Neon deployment. Migration 022 adds a fictional supplier, a completed order with linked stock receipt, an open submitted order, and one inactive synthetic audit identity. `scripts/write-neon-demo-env.ps1` accepts fresh direct and pooled URLs through hidden prompts, validates them, generates a separate runtime password, and writes only the ignored local config. `npm run db:prepare:neon-demo` applies migrations, provisions `inventory_runtime`, and verifies the seed. Hosted setup is pending fresh URLs from Neon and the user's initialization run; no credentials are stored in the repository.
+- Version 1.7.2 prepares Vercel + Neon deployment. Migration 022 adds a fictional supplier, a completed order with linked stock receipt, an open submitted order, and one inactive synthetic audit identity. `scripts/write-neon-demo-env.ps1` accepts direct and pooled URLs through hidden prompts, validates them, pins certificate verification, generates a separate runtime password, and writes only the ignored local config. `npm run db:prepare:neon-demo` applied migrations 001–022 to the dedicated Neon database, provisioned `inventory_runtime`, and verified the seed through both owner and runtime connections. Neon-compatible role hardening preserves the `NOLOGIN` function owner and limits temporary schema-creation access to each migration transaction. No connection values are stored in the repository.
 
 - Application sign-in uses database-backed app users, salted scrypt password hashes, opaque hashed server sessions, and server-enforced Administrator, Manager, Clerk, and Read-only roles. New product and stock writes use the authenticated account as audit actor. Migrations 008-010 add the account/session schema, actor-aware product write function, and actor foreign keys.
 - Initial administrator and optional random-password test accounts are created by local-only, documented scripts; test accounts are opt-in.
@@ -68,8 +68,8 @@
 
 ## Owner's next steps
 
-1. Push the 1.7.1 deployment preparation changes so GitHub Actions can verify them; create the release tag only after CI passes.
-2. Create/sign in to Vercel and Neon accounts, then initialize a new, empty Neon project by following [the deployment guide](docs/DEPLOYMENT_VERCEL_NEON.md). Keep connection strings private; do not send them in chat.
-3. Import the repository into Vercel, set only `APP_DATABASE_URL` (pooled runtime role) and `PUBLIC_DEMO_MODE=true`, and verify the public pages listed in the guide.
+1. Push the 1.7.2 setup changes so GitHub Actions can verify them; create the release tag only after CI passes.
+2. Import `sysinfo7/Inventory_System` into Vercel and set `APP_DATABASE_URL` from the local ignored config plus `PUBLIC_DEMO_MODE=true` for Production and Preview, following [the deployment guide](docs/DEPLOYMENT_VERCEL_NEON.md). Keep the owner URL private and off Vercel.
+3. Open the deployed URL and verify the anonymous read-only pages, order details, hidden supplier contact data, and protected routes in the guide.
 
 The hosted site is an anonymous, read-only portfolio demo containing fictional data. Keep the local app and database private for any non-demo information. Email-based password recovery, persistent account lockout, and a production security review remain outstanding for any write-enabled operational deployment.

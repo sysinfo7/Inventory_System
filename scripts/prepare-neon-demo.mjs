@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { spawnSync } from 'node:child_process';
+import { readdir } from 'node:fs/promises';
 
 const adminValue = process.env.DATABASE_URL;
 const appValue = process.env.APP_DATABASE_URL;
@@ -48,6 +49,59 @@ try {
       throw new Error('Target database is not empty and has no inventory migration ledger; refusing to modify it.');
     }
   } else {
+    const fixtureMigration = await admin.query("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version='022') AS applied");
+    if (!fixtureMigration.rows[0].applied) {
+      // A failed transactional migration can leave earlier migrations applied.
+      // Resume only a known, empty schema; never seed or migrate existing data.
+      const versions = await admin.query('SELECT version FROM schema_migrations');
+      const knownVersions = new Set((await readdir(new URL('../db/', import.meta.url)))
+        .filter((name) => /^\d+_[a-z0-9_]+\.sql$/.test(name))
+        .map((name) => name.slice(0, name.indexOf('_'))));
+      const allVersionsKnown = versions.rows.every((row) => knownVersions.has(row.version));
+      const tables = await admin.query("SELECT tablename FROM pg_tables WHERE schemaname='public'");
+      const expectedTables = new Set([
+        'schema_migrations', 'products', 'locations', 'stock_movements', 'categories',
+        'inventory_stock', 'inventory_audit_log', 'app_users', 'app_sessions',
+        'auth_login_rate_limits', 'app_security_events', 'suppliers', 'purchase_orders',
+        'purchase_order_lines', 'purchase_receipts', 'purchase_receipt_lines', 'purchasing_audit_log',
+      ]);
+      const schemaIsKnown = allVersionsKnown && tables.rows.every((row) => expectedTables.has(row.tablename));
+      const tableNames = new Set(tables.rows.map((row) => row.tablename));
+      const noUsers = tableNames.has('app_users') ? "(SELECT count(*)::int FROM app_users) = 0" : 'TRUE';
+      const noSessions = tableNames.has('app_sessions') ? "(SELECT count(*)::int FROM app_sessions) = 0" : 'TRUE';
+      // Earlier seed migrations intentionally add a small, fixed fictional data
+      // set. Permit resuming only when every existing business row still matches
+      // that exact starter set; operator-entered or unexpected data is refused.
+      const seedState = await admin.query(`
+        SELECT
+          (SELECT count(*)::int FROM categories) = 0 AS no_categories,
+          (SELECT count(*)::int FROM products) = 3 AND
+            (SELECT count(*)::int FROM products WHERE NOT active OR category_id IS NOT NULL OR
+              (sku='DEMO-COFFEE-001' AND (name<>'Northstar Coffee Beans, 12 oz' OR reorder_point<>5 OR sale_price<>14.99)) OR
+              (sku='DEMO-SNACK-001' AND (name<>'Crisp Orchard Trail Mix, 8 oz' OR reorder_point<>8 OR sale_price<>6.49)) OR
+              (sku='DEMO-BOTTLE-001' AND (name<>'Summit Steel Water Bottle, 24 oz' OR reorder_point<>3 OR sale_price<>18.00)) OR
+              sku NOT IN ('DEMO-COFFEE-001','DEMO-SNACK-001','DEMO-BOTTLE-001')) = 0 AS known_products,
+          (SELECT count(*)::int FROM locations) = 2 AND
+            (SELECT count(*)::int FROM locations WHERE name NOT IN ('Demo Store','Demo Outlet')) = 0 AS known_locations,
+          (SELECT count(*)::int FROM stock_movements) = 8 AND
+            (SELECT count(*)::int FROM stock_movements WHERE request_id NOT IN (
+              '72000000-0000-4000-8000-000000000001','72000000-0000-4000-8000-000000000002',
+              '72000000-0000-4000-8000-000000000003','72000000-0000-4000-8000-000000000004',
+              '72000000-0000-4000-8000-000000000005','72000000-0000-4000-8000-000000000006',
+              '72000000-0000-4000-8000-000000000007','72000000-0000-4000-8000-000000000008') OR
+              actor_id IS NOT NULL OR reason NOT IN ('Demo setup - initial receiving','Demo setup - sample sale')) = 0 AS known_movements,
+          (SELECT count(*)::int FROM inventory_audit_log) = 11 AND
+            (SELECT count(*)::int FROM inventory_audit_log WHERE actor_id IS NOT NULL OR
+              NOT ((entity_type='product' AND action='insert') OR (entity_type='stock_movement' AND action='movement'))) = 0 AS known_audit,
+          ${noUsers} AS no_users,
+          ${noSessions} AS no_sessions
+      `);
+      const knownSeedState = Object.values(seedState.rows[0]).every(Boolean);
+      if (!schemaIsKnown || !knownSeedState) {
+        throw new Error('Target has unexpected schema or data; refusing to continue. Use a fresh empty Neon database.');
+      }
+      console.log('Found a known partial schema containing only the exact fictional starter data; safely resuming migrations.');
+    } else {
     const demo = await admin.query(`
       SELECT
         EXISTS (SELECT 1 FROM schema_migrations WHERE version='022') AS fixture_migration,
@@ -92,6 +146,7 @@ try {
         || current.receipt_count !== 1 || current.unexpected_receipts !== 0
         || current.order_line_count !== 2 || current.receipt_line_count !== 1) {
       throw new Error('Target already has a schema but is not the clean employer-demo dataset; use a new empty Neon database.');
+    }
     }
   }
 } finally {

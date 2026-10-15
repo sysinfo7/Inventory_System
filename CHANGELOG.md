@@ -7,6 +7,8 @@
 ### Security
 
 - Add a hidden-input Neon setup helper that validates direct and pooled URLs, generates a separate runtime password, and writes only to the Git-ignored local config file.
+- Adapt migration role attributes and function-owner transfers to Neon without raising the runtime role's privileges; verify TLS certificates explicitly.
+- Allow safe migration retries only when the existing partial database matches the exact fictional starter dataset.
 
 ### Documentation
 

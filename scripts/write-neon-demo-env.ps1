@@ -33,6 +33,12 @@ try {
         throw 'The URLs must be the fresh direct and pooled endpoints for the same Neon database, both with TLS enabled.'
     }
 
+    # Pin certificate verification explicitly to avoid driver-default changes.
+    $directBuilder = [UriBuilder]$direct
+    $directBuilder.Query = $direct.Query.TrimStart('?') -replace '(?i)(^|&)sslmode=(require|verify-ca|verify-full)(?=&|$)', '$1sslmode=verify-full'
+    $pooledBuilder = [UriBuilder]$pooledOwner
+    $pooledBuilder.Query = $pooledOwner.Query.TrimStart('?') -replace '(?i)(^|&)sslmode=(require|verify-ca|verify-full)(?=&|$)', '$1sslmode=verify-full'
+
     # Give the app a new password instead of reusing the database-owner password.
     $randomBytes = New-Object byte[] 32
     $random = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -44,7 +50,7 @@ try {
     $runtimePassword = [Convert]::ToBase64String($randomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
     [Array]::Clear($randomBytes, 0, $randomBytes.Length)
 
-    $runtimeUrl = [UriBuilder]$pooledOwner
+    $runtimeUrl = [UriBuilder]$pooledBuilder.Uri
     $runtimeUrl.UserName = 'inventory_runtime'
     $runtimeUrl.Password = $runtimePassword
 
@@ -52,7 +58,7 @@ try {
     $target = Join-Path (Get-Location) '.env.neon-demo'
     $encoding = New-Object System.Text.UTF8Encoding($false)
     [IO.File]::WriteAllLines($target, [string[]]@(
-        "DATABASE_URL=$directText",
+        "DATABASE_URL=$($directBuilder.Uri.AbsoluteUri)",
         "APP_DATABASE_URL=$($runtimeUrl.Uri.AbsoluteUri)"
     ), $encoding)
 

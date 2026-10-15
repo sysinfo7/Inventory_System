@@ -14,7 +14,7 @@ The database migrations seed two fictional locations, three products, stock acti
    .\scripts\write-neon-demo-env.ps1
    ```
 
-   Paste the fresh direct and pooled URLs at the hidden prompts. The helper validates the Neon endpoints, TLS settings, and matching database, generates a new URL-safe password for `inventory_runtime`, and writes `.env.neon-demo`. It does not print the credentials. That file is ignored by Git.
+   Paste the fresh direct and pooled URLs at the hidden prompts. The helper validates the Neon endpoints, TLS settings, and matching database, pins certificate verification to `sslmode=verify-full`, generates a new URL-safe password for `inventory_runtime`, and writes `.env.neon-demo`. It does not print the credentials. That file is ignored by Git.
 
    The preparation command also refuses local and non-Neon hosts, and refuses to initialize a nonempty database without this project's migration ledger.
 
@@ -26,7 +26,7 @@ From the repository folder, run:
 npm run db:prepare:neon-demo
 ```
 
-The command applies migrations through 022, creates or refreshes the constrained `inventory_runtime` login, and connects with that runtime credential to verify the fictional catalog, two locations, supplier, sample orders, and absence of active accounts. The owner URL never needs to be stored in Vercel. Once successful, remove `.env.neon-demo` or keep it in a secure password manager for future maintenance; never upload or commit it.
+The command applies migrations through 022, creates or refreshes the constrained `inventory_runtime` login, and connects with that runtime credential to verify the fictional catalog, two locations, supplier, sample orders, and absence of active accounts. Neon does not grant project-owner connections PostgreSQL superuser status, so the migration runner uses PostgreSQL's least-privileged defaults, grants its dedicated `NOLOGIN` function-owner role membership and temporary schema `CREATE` only where function ownership requires it, then removes the temporary schema grant before each migration commits. A retry may resume only when the existing schema and all rows match the exact fictional starter data; unexpected data is refused. The owner URL never needs to be stored in Vercel. Once successful, `.env.neon-demo` can be removed; keep it only in a secure password manager for future maintenance, and never upload or commit it.
 
 ## 3. Import the GitHub project into Vercel
 

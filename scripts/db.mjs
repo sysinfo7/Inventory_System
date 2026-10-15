@@ -4,6 +4,9 @@ import { readdir, readFile } from 'node:fs/promises';
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required. Copy .env.example to .env first.');
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+const neonDatabase = new URL(process.env.DATABASE_URL).hostname.endsWith('.neon.tech');
+const migrationFiles = (await readdir(new URL('../db/', import.meta.url)))
+  .filter((name) => /^\d+_[a-z0-9_]+\.sql$/.test(name));
 
 try {
   await client.connect();
@@ -16,9 +19,7 @@ try {
         checksum text NOT NULL,
         applied_at timestamptz NOT NULL DEFAULT now()
       )`);
-      const files = (await readdir(new URL('../db/', import.meta.url)))
-        .filter((name) => /^\d+_[a-z0-9_]+\.sql$/.test(name))
-        .sort();
+      const files = [...migrationFiles].sort();
       for (const file of files) {
         const sql = await readFile(new URL(`../db/${file}`, import.meta.url), 'utf8');
         const checksum = createHash('sha256').update(sql).digest('hex');
@@ -32,8 +33,35 @@ try {
         try {
           // 001 is a legacy self-transactional file; strip its wrappers so the ledger
           // insert and all schema changes commit or roll back together.
-          const migrationSql = sql.replace(/^\s*BEGIN;\s*/i, '').replace(/\s*COMMIT;\s*$/i, '');
+          let migrationSql = sql.replace(/^\s*BEGIN;\s*/i, '').replace(/\s*COMMIT;\s*$/i, '');
+          if (neonDatabase) {
+            // Neon owners are not PostgreSQL superusers, so Neon rejects even
+            // explicit NOSUPERUSER clauses. These negative role flags are the
+            // PostgreSQL defaults; leaving them out preserves least privilege.
+            migrationSql = migrationSql.replace(/\bNO(?:SUPERUSER|CREATEDB|CREATEROLE|REPLICATION|BYPASSRLS)\b/gi, '');
+            if (file === '003_product_catalog_writes.sql') {
+              // The Neon project owner can create the restricted routine-owner
+              // role, but must be a member of it to transfer function ownership.
+              // Grant only that membership; the role itself remains NOLOGIN and
+              // receives only the explicit table and schema privileges below.
+              migrationSql = migrationSql.replace(
+                /ALTER ROLE inventory_function_owner NOLOGIN NOINHERIT\s*;/i,
+                (statement) => `${statement}\nDO $$ BEGIN EXECUTE format('GRANT inventory_function_owner TO %I', current_user); END $$;`,
+              );
+            }
+            // Subsequent migrations create SECURITY DEFINER functions and then
+            // transfer them to this NOLOGIN role. PostgreSQL requires the new
+            // owner to have CREATE on the containing schema during transfer.
+            // Grant it only for this migration transaction and revoke before
+            // recording the migration as complete.
+            if (Number(version) > 3) {
+              await client.query('GRANT CREATE ON SCHEMA public TO inventory_function_owner');
+            }
+          }
           await client.query(migrationSql);
+          if (neonDatabase && Number(version) > 3) {
+            await client.query('REVOKE CREATE ON SCHEMA public FROM inventory_function_owner');
+          }
           await client.query('INSERT INTO schema_migrations(version, checksum) VALUES ($1, $2)', [version, checksum]);
           await client.query('COMMIT');
           console.log(`Applied ${file}`);

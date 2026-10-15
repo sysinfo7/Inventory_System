@@ -83,5 +83,5 @@ The local PostgreSQL port and Next.js development server bind to loopback. The a
 ## Future work
 
 1. Email-based password recovery, account invitations, and a persistent account lockout policy.
-2. Complete the Vercel and Neon account setup and publish the fictional-only employer demo using [the deployment guide](docs/DEPLOYMENT_VERCEL_NEON.md).
+2. Import the initialized Neon-backed project into Vercel and publish the fictional-only employer demo using [the deployment guide](docs/DEPLOYMENT_VERCEL_NEON.md).
 3. A production security review before using real operational data; keep the verified local backup protected unless a secure off-checkout destination is chosen.
