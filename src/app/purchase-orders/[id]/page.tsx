@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { connection } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { Suspense } from 'react';
-import { hasPermission, requirePermission } from '@/lib/auth';
+import { hasPermission, requireReadPermission } from '@/lib/auth';
 import { getDbPool, listActiveStockProducts, listInventoryLocations } from '@/lib/db';
 import { getPurchaseOrder } from '@/lib/purchasing';
 import { OrderEditor } from '../order-editor';
@@ -29,11 +29,12 @@ export default function PurchaseOrderDetailPage(props: Props) {
 
 async function PurchaseOrderDetailContent({ params, searchParams }: Props) {
   await connection();
-  const actor = await requirePermission('purchase_orders:read');
+  const actor = await requireReadPermission('purchase_orders:read');
   const [{ id }, query] = await Promise.all([params, searchParams]);
   if (!/^[1-9]\d{0,18}$/.test(id) || (id.length === 19 && id > '9223372036854775807')) notFound();
   const order = await getPurchaseOrder(id);
   if (!order) notFound();
+  if (actor.publicDemo && !['submitted', 'partially_received', 'received'].includes(order.status)) notFound();
   const canWrite = hasPermission(actor.role, 'purchase_orders:write');
   const canReceive = hasPermission(actor.role, 'purchase_orders:receive');
   const isDraft = order.status === 'draft';
@@ -58,13 +59,13 @@ async function PurchaseOrderDetailContent({ params, searchParams }: Props) {
   const remainingTotal = orderedTotal - receivedTotal;
   const activityHref = `/activity?location=${encodeURIComponent(String(header.location_id))}&q=${encodeURIComponent(orderNumber)}`;
   const receipts = new Map<string, { receivedAt: Date; reference: string | null; note: string | null; actor: string; lines: Array<{ name: string; sku: string; quantity: string }> }>();
-  const orderNotes = typeof header.notes === 'string' ? header.notes : '';
-  const cancelReason = typeof header.cancel_reason === 'string' ? header.cancel_reason : '';
+  const orderNotes = !actor.publicDemo && typeof header.notes === 'string' ? header.notes : '';
+  const cancelReason = !actor.publicDemo && typeof header.cancel_reason === 'string' ? header.cancel_reason : '';
   for (const row of order.receipts as Array<Record<string, unknown>>) {
     const receiptId = String(row.id);
     if (!receipts.has(receiptId)) receipts.set(receiptId, {
-      receivedAt: row.received_at as Date, reference: row.reference as string | null,
-      note: row.note as string | null, actor: String(row.received_by), lines: [],
+      receivedAt: row.received_at as Date, reference: actor.publicDemo ? null : row.reference as string | null,
+      note: actor.publicDemo ? null : row.note as string | null, actor: actor.publicDemo ? 'Demo user' : String(row.received_by), lines: [],
     });
     receipts.get(receiptId)!.lines.push({ name: String(row.product_name_snapshot), sku: String(row.sku_snapshot), quantity: String(row.quantity) });
   }
@@ -79,7 +80,7 @@ async function PurchaseOrderDetailContent({ params, searchParams }: Props) {
       <div><span>Destination</span><strong>{String(header.location_name)}</strong></div>
       <div><span>Expected delivery</span><strong>{String(header.expected_delivery_on || 'Not set')}</strong></div>
       <div><span>Quantity progress</span><strong>{receivedTotal.toString()} / {orderedTotal.toString()} units</strong></div>
-      <div><span>Created by</span><strong>{String(header.created_by)}</strong></div>
+      <div><span>Created by</span><strong>{actor.publicDemo ? 'Demo user' : String(header.created_by)}</strong></div>
       <div><span>Created</span><strong>{new Date(String(header.created_at)).toLocaleDateString()}</strong></div>
     </div>{orderNotes && <p className="po-notes"><strong>Order notes:</strong> {orderNotes}</p>}
     {order.status === 'cancelled' && cancelReason && <p className="po-notes"><strong>Cancellation reason:</strong> {cancelReason}</p>}</section>

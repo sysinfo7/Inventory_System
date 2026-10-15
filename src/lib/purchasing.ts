@@ -40,7 +40,7 @@ export async function listSuppliers(includeInactive = true): Promise<Supplier[]>
   }));
 }
 
-export async function listPurchaseOrders(): Promise<PurchaseOrderSummary[]> {
+export async function listPurchaseOrders(publicDemo = false): Promise<PurchaseOrderSummary[]> {
   const result = await getDbPool().query(`
     SELECT po.id, po.order_number, supplier.name AS supplier_name, supplier.active AS supplier_active,
       location.id AS location_id, location.name AS location_name, po.status, po.expected_delivery_on, po.created_at,
@@ -57,9 +57,10 @@ export async function listPurchaseOrders(): Promise<PurchaseOrderSummary[]> {
       WHERE receipt_line.purchase_order_line_id = line.id
       GROUP BY receipt_line.purchase_order_line_id
     ) AS received ON true
+    WHERE (NOT $1::boolean OR po.status IN ('submitted', 'partially_received', 'received'))
     GROUP BY po.id, supplier.id, location.id
     ORDER BY po.created_at DESC, po.id DESC
-  `);
+  `, [publicDemo]);
   return result.rows.map((row) => ({
     id: String(row.id), orderNumber: row.order_number, supplierName: row.supplier_name,
     supplierActive: row.supplier_active, locationId: String(row.location_id), locationName: row.location_name, status: row.status,

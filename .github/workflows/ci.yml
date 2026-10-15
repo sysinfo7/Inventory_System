@@ -48,9 +48,29 @@ jobs:
           done
           cat next-server.log
           exit 1
+      - name: Verify anonymous access stays disabled by default
+        env:
+          PUBLIC_DEMO_TEST_BASE_URL: http://127.0.0.1:3000
+          PUBLIC_DEMO_EXPECT_DISABLED: 'true'
+        run: npm run public-demo:verify
       - name: Verify authentication and permissions
         env:
           AUTH_TEST_BASE_URL: http://127.0.0.1:3000
           ACTIVITY_FILTER_CI_TESTS: 'true'
           AUTH_PASSWORD_CHANGE_CI_TESTS: 'true'
         run: npm run auth:verify
+      - name: Start the built application in public demo mode
+        run: nohup env PUBLIC_DEMO_MODE=true PORT=3001 npm run start > public-demo-server.log 2>&1 &
+      - name: Verify anonymous public demo access
+        env:
+          PUBLIC_DEMO_TEST_BASE_URL: http://127.0.0.1:3001
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3001/ > /dev/null; then
+              npm run public-demo:verify
+              exit 0
+            fi
+            sleep 2
+          done
+          cat public-demo-server.log
+          exit 1

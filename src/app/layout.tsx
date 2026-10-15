@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { currentUser } from "@/lib/auth";
+import { currentUser, isPublicDemoModeEnabled } from "@/lib/auth";
 import { LogoutButton } from "@/app/logout/logout-button";
 import "./globals.css";
 import { Suspense } from "react";
@@ -22,14 +22,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 async function SessionNavigation() {
   const user = await currentUser();
+  const publicDemo = !user && isPublicDemoModeEnabled();
   return <>
     <nav className="top-nav" aria-label="Main navigation">
       <Link href="/">Overview</Link>
+      {publicDemo && <><Link href="/products">Products</Link><Link href="/stock">Stock</Link><Link href="/purchase-orders">Purchase orders</Link><Link href="/suppliers">Suppliers</Link><Link href="/activity">Activity</Link></>}
       {user && (user.passwordChangeRequired
         ? <Link href="/account/security?required=1">Change password</Link>
         : <><Link href="/products">Products</Link><Link href="/stock">Stock</Link><Link href="/purchase-orders">Purchase orders</Link><Link href="/suppliers">Suppliers</Link><Link href="/activity">Activity</Link><Link href="/permissions">Permissions</Link><Link href="/account/security">Account</Link>{user.role === 'admin' && <Link href="/users">Users</Link>}</>)}
     </nav>
     {user ? <div className="account-controls"><span className="environment-tag"><span aria-hidden="true">●</span> {user.displayName} · {user.role}</span><LogoutButton /></div>
+      : publicDemo ? <span className="environment-tag public-demo-tag">Employer demo · read only</span>
       : <Link className="button button-secondary sign-in-link" href="/login">Sign in</Link>}
   </>;
 }

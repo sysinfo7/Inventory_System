@@ -16,6 +16,14 @@ Remaining work: inventory workflows, database concurrency tests, authentication,
 
 Database verification: owner ran the setup script in external PowerShell; supplied output confirms healthy PostgreSQL container, successful schema application, and successful connection check. Agent did not independently rerun the database checks.
 
+## Public employer demo milestone (v1.7.0)
+
+Human decision: prepare public read-only access without requiring an employer to sign in. The public mode is opt-in and is intended for a separate fictional-data deployment.
+
+Agent contribution: added a typed read-only anonymous gate for catalog, stock, activity, suppliers, and purchase orders; retained the existing authenticated permission checks for every write and admin route; hid supplier contact/private-note details; anonymized actor names; omitted draft/cancelled orders; updated the overview, runbook, security, and architecture docs; and added a CI verifier for public pages, protected pages, and credential-change endpoints.
+
+Validation in the Codex environment: `npm run lint`, `npm run typecheck`, and `git diff --check` passed. Local production build could not create a junction under `.next` because the Windows sandbox denied the operation. `docker compose ps` was also blocked by sandbox permission on the Docker Desktop named pipe, so local HTTP/database verification remains pending. The public-mode integration verifier is wired into CI and must run in GitHub Actions after the change is pushed; no CI pass is claimed yet.
+
 
 
 ## Named agent team and database foundation milestone

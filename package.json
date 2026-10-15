@@ -1,6 +1,6 @@
 {
   "name": "inventory-system",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
@@ -19,7 +19,8 @@
     "auth:reset-admin-local": "node --env-file-if-exists=.env scripts/reset-local-admin.mjs",
     "auth:seed-test-users": "node --env-file-if-exists=.env scripts/seed-permission-test-users.mjs",
     "auth:cleanup-checks": "node --env-file-if-exists=.env scripts/cleanup-auth-check-users.mjs",
-    "auth:verify": "node --env-file-if-exists=.env scripts/verify-auth-workflow.mjs"
+    "auth:verify": "node --env-file-if-exists=.env scripts/verify-auth-workflow.mjs",
+    "public-demo:verify": "node scripts/verify-public-demo.mjs"
   },
   "dependencies": {
     "next": "16.4.1",

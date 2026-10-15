@@ -9,6 +9,8 @@
 
 ## Implemented application behavior
 
+- Version 1.7.0 adds opt-in anonymous employer-demo browsing behind `PUBLIC_DEMO_MODE=true`. The flag is off by default; public pages use only the viewer read allowlist, while mutation and account routes continue to require authenticated permissions. Supplier contact/private-note fields are hidden, activity and receipt actors are anonymized, and draft/cancelled purchase orders are excluded from public lists and direct detail requests. CI now runs a dedicated public-mode route and mutation-endpoint verifier. Public deployment must use a separate fictional-only database.
+
 - Application sign-in uses database-backed app users, salted scrypt password hashes, opaque hashed server sessions, and server-enforced Administrator, Manager, Clerk, and Read-only roles. New product and stock writes use the authenticated account as audit actor. Migrations 008-010 add the account/session schema, actor-aware product write function, and actor foreign keys.
 - Initial administrator and optional random-password test accounts are created by local-only, documented scripts; test accounts are opt-in.
 

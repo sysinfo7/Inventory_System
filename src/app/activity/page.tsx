@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { listInventoryLocations, listStockActivity, listStockActivityActors } from '@/lib/db';
-import { requirePermission } from '@/lib/auth';
+import { requireReadPermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
 type ActivityPageProps = { searchParams: Promise<{ location?: QueryValue; type?: QueryValue; q?: QueryValue; actor?: QueryValue; from?: QueryValue; to?: QueryValue }> };
@@ -29,7 +29,7 @@ export default function ActivityPage({ searchParams }: ActivityPageProps) {
 
 async function ActivityContent({ searchParams }: ActivityPageProps) {
   await connection();
-  await requirePermission('activity:read');
+  const user = await requireReadPermission('activity:read');
 
   const params = await searchParams;
   const rawLocation = firstValue(params.location) ?? '';
@@ -51,10 +51,11 @@ async function ActivityContent({ searchParams }: ActivityPageProps) {
   let locationId = '';
   let actorId = '';
   try {
-    [locations, actors] = await Promise.all([listInventoryLocations(), listStockActivityActors()]);
+    [locations, actors] = await Promise.all([listInventoryLocations(), user.publicDemo ? Promise.resolve([]) : listStockActivityActors()]);
     locationId = locations.some((location) => location.id === rawLocation) ? rawLocation : '';
     actorId = rawActor === 'legacy' || actors.some((actor) => actor.id === rawActor) ? rawActor : '';
     activity = await listStockActivity({ locationId, movementType, search, actorId, fromDate: safeFromDate, toDate: safeToDate });
+    if (user.publicDemo) activity = activity.map((movement) => ({ ...movement, actorName: 'Demo user' }));
   } catch (error) {
     console.error('Activity read failed:', error instanceof Error ? error.name : 'unknown error');
     return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Activity</p><h1>Activity is unavailable</h1><p>The movement history could not be loaded. Check the local database setup and refresh this page.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;
@@ -63,8 +64,8 @@ async function ActivityContent({ searchParams }: ActivityPageProps) {
 
   return (
     <main className="page-shell">
-      <div className="page-heading"><div><p className="eyebrow">Inventory / Activity</p><h1>Movement history</h1><p className="page-description">A time-ordered record of stock changes by product and location.</p></div><Link className="button button-primary" href="/stock">Record a stock change <span aria-hidden="true">→</span></Link></div>
-      <aside className="demo-notice" aria-label="Inventory audit history"><span className="notice-mark" aria-hidden="true">i</span><p><strong>Inventory audit history.</strong> This ledger tracks unit quantities, not payments, point-of-sale transactions, or accounting entries. New stock changes include the signed-in user&apos;s identity.</p></aside>
+      <div className="page-heading"><div><p className="eyebrow">Inventory / Activity</p><h1>Movement history</h1><p className="page-description">A time-ordered record of stock changes by product and location.</p></div><Link className="button button-primary" href="/stock">{user.publicDemo ? 'View stock on hand' : 'Record a stock change'} <span aria-hidden="true">→</span></Link></div>
+      <aside className="demo-notice" aria-label="Inventory audit history"><span className="notice-mark" aria-hidden="true">i</span><p><strong>Inventory audit history.</strong> {user.publicDemo ? 'Fictional sample activity; actor names are anonymized in this public read-only view.' : 'This ledger tracks unit quantities, not payments, point-of-sale transactions, or accounting entries. New stock changes include the signed-in user&apos;s identity.'}</p></aside>
 
       <section className="catalog-panel" aria-labelledby="activity-heading">
         <div className="catalog-toolbar activity-toolbar">
@@ -76,8 +77,8 @@ async function ActivityContent({ searchParams }: ActivityPageProps) {
             <select id="activity-type" name="type" defaultValue={movementType}><option value="all">All types</option>{movementTypes.map((type) => <option key={type} value={type}>{type === 'receiving' ? 'Receiving' : type[0].toUpperCase() + type.slice(1)}</option>)}</select>
             <label htmlFor="activity-search">Search product, SKU, or reason</label>
             <input id="activity-search" type="search" name="q" maxLength={100} placeholder="Search activity" defaultValue={search} />
-            <label htmlFor="activity-actor">Recorded by</label>
-            <select id="activity-actor" name="actor" defaultValue={actorId}><option value="">Anyone</option><option value="legacy">Legacy entries</option>{actors.map((actor) => <option key={actor.id} value={actor.id}>{actor.name}</option>)}</select>
+            {!user.publicDemo && <><label htmlFor="activity-actor">Recorded by</label>
+            <select id="activity-actor" name="actor" defaultValue={actorId}><option value="">Anyone</option><option value="legacy">Legacy entries</option>{actors.map((actor) => <option key={actor.id} value={actor.id}>{actor.name}</option>)}</select></>}
             <label htmlFor="activity-from">From date (UTC)</label>
             <input id="activity-from" type="date" name="from" defaultValue={safeFromDate} />
             <label htmlFor="activity-to">Through date (UTC)</label>
@@ -89,7 +90,7 @@ async function ActivityContent({ searchParams }: ActivityPageProps) {
         </div>
 
         {activity.length === 0 ? (
-          <div className="empty-state"><div className="empty-icon" aria-hidden="true">↗</div><h3>{hasFilters ? 'No matching movements' : 'No stock activity yet'}</h3><p>{hasFilters ? 'Try changing or clearing the selected filters.' : 'Once stock is received or deducted, each change will appear here with a signed quantity and reason.'}</p>{hasFilters ? <Link className="button button-secondary" href="/activity">Clear filters</Link> : <Link className="button button-primary" href="/stock">Record the first stock change</Link>}</div>
+          <div className="empty-state"><div className="empty-icon" aria-hidden="true">↗</div><h3>{hasFilters ? 'No matching movements' : 'No stock activity yet'}</h3><p>{hasFilters ? 'Try changing or clearing the selected filters.' : user.publicDemo ? 'The sample database has no stock movements yet.' : 'Once stock is received or deducted, each change will appear here with a signed quantity and reason.'}</p>{hasFilters ? <Link className="button button-secondary" href="/activity">Clear filters</Link> : !user.publicDemo && <Link className="button button-primary" href="/stock">Record the first stock change</Link>}</div>
         ) : (
           <div className="table-scroll"><table className="product-table activity-table"><caption className="sr-only">Newest stock movements first, with signed unit changes.</caption><thead><tr><th scope="col">Date and time (UTC)</th><th scope="col">Product</th><th scope="col">Location</th><th scope="col">Type</th><th scope="col">Change</th><th scope="col">Reason</th><th scope="col">Recorded by</th></tr></thead><tbody>
             {activity.map((movement) => {

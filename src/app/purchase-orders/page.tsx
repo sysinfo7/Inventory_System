@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
-import { hasPermission, requirePermission } from '@/lib/auth';
+import { hasPermission, requireReadPermission } from '@/lib/auth';
 import { listPurchaseOrders } from '@/lib/purchasing';
 
 type Props = { searchParams: Promise<{ q?: string; status?: string; location?: string; error?: string; saved?: string }> };
@@ -20,8 +20,8 @@ export default function PurchaseOrdersPage(props: Props) {
 
 async function PurchaseOrdersContent({ searchParams }: Props) {
   await connection();
-  const user = await requirePermission('purchase_orders:read');
-  const [params, allOrders] = await Promise.all([searchParams, listPurchaseOrders()]);
+  const user = await requireReadPermission('purchase_orders:read');
+  const [params, allOrders] = await Promise.all([searchParams, listPurchaseOrders(Boolean(user.publicDemo))]);
   const query = (params.q ?? '').trim().toLocaleLowerCase();
   const chosenStatus = params.status && statusLabels[params.status] ? params.status : '';
   const orders = allOrders.filter((order) => (!chosenStatus || order.status === chosenStatus)

@@ -34,6 +34,8 @@ Accounts created by the application and administrator-reset accounts are marked 
 
 Every inventory page and Server Action checks a permission using the database-resolved current session. UI hiding is only a convenience; direct page/action requests are checked too. Roles:
 
+`PUBLIC_DEMO_MODE=true` is an explicit deployment opt-in that allows anonymous reads only on the product catalog, stock balances, movement history, supplier names, and submitted/received purchase orders. The mode uses the same viewer grants and a separate `requireReadPermission` gate; the existing authenticated `requirePermission` gate remains mandatory for writes, account pages, and administrative pages. Anonymous views hide supplier contacts/private notes, mask staff names, omit draft/cancelled orders, and do not render write forms. CI exercises the public page allowlist, protected pages, and credential-changing HTTP routes. Treat the environment flag as publication of every row returned by those read queries: deploy it only with a separately provisioned database of wholly fictional data, never a personal or business database. The signed-in demo owner can still use their assigned role; anonymous visitors remain read-only.
+
 | Role | Catalog | Stock | Purchasing | Activity | User administration |
 | --- | --- | --- | --- | --- | --- |
 | Administrator | View and edit | View, receive, return, deduct sale, adjust count | View; edit suppliers/orders; deactivate suppliers; receive orders | View | Reserved for account management |

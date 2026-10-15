@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-14
+
+### Added
+
+- Add opt-in anonymous read-only access for employer demos, with an explicit public-read allowlist and CI route checks.
+- Hide supplier contact details and private notes, anonymize staff names, and omit draft/cancelled orders from public views.
+- Keep anonymous access disabled by default; document the requirement to use a separate fictional-only database.
+
 ### Documentation
 
 - Complete employer-manual purchasing walkthrough with order-register, draft, submission, and receiving screenshots; refresh project version and roadmap references.

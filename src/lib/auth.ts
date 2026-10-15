@@ -11,8 +11,17 @@ const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
 
 export type Role = 'admin' | 'manager' | 'clerk' | 'viewer';
 export type Permission = 'catalog:read' | 'catalog:write' | 'stock:read' | 'stock:receive' | 'stock:sale' | 'stock:adjust' | 'activity:read' | 'users:manage' | 'suppliers:read' | 'suppliers:write' | 'suppliers:manage' | 'purchase_orders:read' | 'purchase_orders:write' | 'purchase_orders:receive';
-export type AuthUser = { id: string; email: string; displayName: string; role: Role; passwordChangeRequired: boolean };
+export type AuthUser = { id: string; email: string; displayName: string; role: Role; passwordChangeRequired: boolean; publicDemo?: boolean };
 export type AuthenticationResult = { user: AuthUser | null; rateLimited: boolean; retryAfterSeconds?: number };
+
+export type PublicReadPermission = 'catalog:read' | 'stock:read' | 'activity:read' | 'suppliers:read' | 'purchase_orders:read';
+const publicDemoPermissions: readonly PublicReadPermission[] = [
+  'catalog:read', 'stock:read', 'activity:read', 'suppliers:read', 'purchase_orders:read',
+];
+
+export function isPublicDemoModeEnabled() {
+  return process.env.PUBLIC_DEMO_MODE === 'true';
+}
 
 const grants: Record<Role, readonly Permission[]> = {
   admin: ['catalog:read', 'catalog:write', 'stock:read', 'stock:receive', 'stock:sale', 'stock:adjust', 'activity:read', 'users:manage', 'suppliers:read', 'suppliers:write', 'suppliers:manage', 'purchase_orders:read', 'purchase_orders:write', 'purchase_orders:receive'],
@@ -229,6 +238,25 @@ export async function requirePermission(permission: Permission): Promise<AuthUse
   const user = await requireUser();
   if (!hasPermission(user.role, permission)) redirect('/forbidden');
   return user;
+}
+
+/** Allow anonymous visitors to use only the explicitly selected read-only demo pages. */
+export async function requireReadPermission(permission: PublicReadPermission): Promise<AuthUser> {
+  const user = await currentUser();
+  if (user) {
+    if (user.passwordChangeRequired) redirect('/account/security?required=1');
+    if (!hasPermission(user.role, permission)) redirect('/forbidden');
+    return user;
+  }
+  if (!isPublicDemoModeEnabled() || !publicDemoPermissions.includes(permission)) redirect('/login');
+  return {
+    id: '00000000-0000-4000-8000-000000000000',
+    email: '',
+    displayName: 'Employer demo visitor',
+    role: 'viewer',
+    passwordChangeRequired: false,
+    publicDemo: true,
+  };
 }
 
 export async function revokeCurrentSession() {

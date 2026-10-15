@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { listCatalogProducts } from '@/lib/db';
-import { requirePermission, hasPermission } from '@/lib/auth';
+import { requireReadPermission, hasPermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
 type ProductsPageProps = { searchParams: Promise<{ q?: QueryValue; status?: QueryValue; saved?: QueryValue }> };
@@ -22,13 +22,13 @@ export default function ProductsPage(props: ProductsPageProps) {
 }
 
 async function CatalogContent({ searchParams }: ProductsPageProps) {
-  const user = await requirePermission('catalog:read');
+  const user = await requireReadPermission('catalog:read');
   await connection();
   const params = await searchParams;
   const rawSearch = firstValue(params.q);
   const search = typeof rawSearch === 'string' ? rawSearch.trim().slice(0, 100) : '';
   const rawStatus = firstValue(params.status);
-  const status = rawStatus === 'inactive' || rawStatus === 'all' ? rawStatus : 'active';
+  const status = user.publicDemo ? 'active' : rawStatus === 'inactive' || rawStatus === 'all' ? rawStatus : 'active';
 
   let products;
   try {
@@ -51,7 +51,7 @@ async function CatalogContent({ searchParams }: ProductsPageProps) {
 
       <aside className="demo-notice" aria-label="Local demo notice">
         <span className="notice-mark" aria-hidden="true">i</span>
-        <p><strong>Signed-in inventory.</strong> Product changes are attributed to your account in the audit log.</p>
+        <p><strong>{user.publicDemo ? 'Public employer demo.' : 'Signed-in inventory.'}</strong> {user.publicDemo ? 'Fictional sample catalog. This view is read-only; no account is needed.' : 'Product changes are attributed to your account in the audit log.'}</p>
       </aside>
 
       {firstValue(params.saved) === '1' && <p className="success-notice" role="status">Product saved. The catalog has been refreshed.</p>}
@@ -84,7 +84,7 @@ async function CatalogContent({ searchParams }: ProductsPageProps) {
             <h3>{search ? 'No matching products' : status === 'active' ? 'No active products yet' : 'No products found'}</h3>
             <p>{search ? `No products matched “${search}”. Try another name or SKU.` : 'Add a product to begin building the catalog.'}</p>
             {search ? <Link href="/products" className="button button-secondary">Clear search</Link>
-              : <Link href="/products/new" className="button button-primary">Add your first product</Link>}
+              : hasPermission(user.role, 'catalog:write') && <Link href="/products/new" className="button button-primary">Add your first product</Link>}
           </div>
         ) : (
           <div className="table-scroll">

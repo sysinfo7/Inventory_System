@@ -2,7 +2,7 @@
 
 A portfolio project for a small retail business to manage products and record stock by location. Built with TypeScript, Next.js 16, and PostgreSQL 17.
 
-**Project version: 1.6.1** — includes quantity-only supplier purchasing, atomic purchase-order receiving, role-controlled cancellation, and responsive order details.
+**Project version: 1.7.0** — includes an opt-in anonymous, read-only employer demo with privacy-limited supplier and activity views.
 
 ## Versioning
 
@@ -12,7 +12,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Current status
 
-The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, suppliers, quantity-only purchase orders, sign-in with persistent rate limiting, role-based permissions, administrator user management, and self-service password changes. Receiving a purchase order creates linked receipt records and stock movements in one transaction. Authenticated product and stock changes record their actor in the inventory audit trail; password changes use a separate security event log. Movement history filters by location, type, product/reason, actor, and inclusive UTC date range. Application permission roles are administrator, manager, clerk, and read-only. The purchasing feature does not include supplier costs, currency, invoices, or accounting entries.
+The repository includes a product catalog, location-based stock balances, receipt, return, sale-deduction, and manager-approved count-adjustment workflows, suppliers, quantity-only purchase orders, sign-in with persistent rate limiting, role-based permissions, administrator user management, and self-service password changes. An optional public employer-demo mode grants anonymous access to a limited read-only set of pages; it is disabled by default and must use a separate database containing fictional data only. Receiving a purchase order creates linked receipt records and stock movements in one transaction. Authenticated product and stock changes record their actor in the inventory audit trail; password changes use a separate security event log. Movement history filters by location, type, product/reason, actor, and inclusive UTC date range. Application permission roles are administrator, manager, clerk, and read-only. The purchasing feature does not include supplier costs, currency, invoices, or accounting entries.
 
 Migrations 004–007 seed two fictional locations, three products, and sample stock history. Migrations 008–010 add app users, sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds database-backed login throttling; migrations 012–014 revoke sessions when an account role changes or it is deactivated; migration 015 adds activity-filter indexes; migrations 016–018 log password changes and administrator resets, require temporary credentials to be replaced, and revoke sessions; migrations 019–021 add purchasing records, transaction functions, and the JSONB validation helper. Authenticated users can change their password after confirming their current password. See [SETUP_STATUS.md](SETUP_STATUS.md) for verification evidence and [the employer database design](docs/EMPLOYER_DATABASE_DESIGN.md) for the schema diagram and explanation.
 
@@ -34,7 +34,7 @@ npm run purchasing:verify
 npm run dev
 ```
 
-The app requires sign-in. After `npm run db:migrate` and `npm run db:provision-app`, create your local administrator with `npm run auth:bootstrap`; this asks you to set a private password. If every administrator is locked out, `npm run auth:reset-admin-local` resets an existing active admin using hidden prompts and loopback-only database access. Start `npm run dev` in a separate window to use the app or run `npm run auth:verify`. The admin page can create test users with chosen roles; a helper can also create optional random-password test accounts. See [the user manual](docs/USER_MANUAL.md) and [the security notes](docs/SECURITY.md).
+The app requires sign-in by default. After `npm run db:migrate` and `npm run db:provision-app`, create your local administrator with `npm run auth:bootstrap`; this asks you to set a private password. If every administrator is locked out, `npm run auth:reset-admin-local` resets an existing active admin using hidden prompts and loopback-only database access. Start `npm run dev` in a separate window to use the app or run `npm run auth:verify`. For a local employer-demo preview, set `$env:PUBLIC_DEMO_MODE = 'true'` before starting the server and sign out in the browser; disable it by removing the variable and restarting. This mode makes selected pages public, so only enable it against fictional demo data. The admin page can create test users with chosen roles; a helper can also create optional random-password test accounts. See [the user manual](docs/USER_MANUAL.md) and [the security notes](docs/SECURITY.md).
 
 The local helper creates a separate 256-bit app password in `.env` without displaying it, and refuses to replace an existing app URL. The web app binds to `127.0.0.1`; do not change it to a public interface. PostgreSQL is published to the local machine at port 5433. Never commit or share `.env` or database backups.
 

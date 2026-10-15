@@ -6,6 +6,8 @@ The repository combines a Next.js App Router product catalog and inventory workf
 
 The stack is TypeScript, React, Next.js, Tailwind CSS, PostgreSQL, and the `pg` driver. `npm run db:migrate` applies numbered SQL files. The runner serializes migration runs with an advisory lock, stores a SHA-256 checksum for each applied version, and wraps each migration and ledger record in one transaction. An applied SQL file whose checksum changes is rejected; follow-up schema changes belong in a new numbered migration. There is no automatic rollback command.
 
+The optional `PUBLIC_DEMO_MODE=true` setting adds anonymous read access through a typed read-only permission gate for catalog, stock, activity, supplier names, and submitted/received purchase orders. The ordinary authenticated permission gate remains in place for every mutation and administrative route. Public-mode queries and presentation omit supplier contact details, anonymize staff labels, and exclude draft/cancelled orders. This is safe only when the deployment uses a separate database containing fictional portfolio data.
+
 ## Data model
 
 The schema separates catalog entities, movement history, current stock, audit events, and temporary login-throttle buckets. Products and locations each have their own identities; movements reference both. `inventory_stock` is a cached balance projection keyed by product and location. The `stock_balances` view reads this projection. New stock changes must go through `record_stock_movement`, which locks the corresponding balance row, checks that the result remains nonnegative, updates the projection, and inserts the movement within the same database statement transaction.

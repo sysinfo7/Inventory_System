@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { Suspense } from 'react';
 import { StockForms } from './stock-forms';
 import { listActiveStockProducts, listInventoryLocations, listStockItems } from '@/lib/db';
-import { requirePermission, hasPermission } from '@/lib/auth';
+import { requireReadPermission, hasPermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
 type StockPageProps = { searchParams: Promise<{ location?: QueryValue }> };
@@ -23,7 +23,7 @@ export default function StockPage({ searchParams }: StockPageProps) {
 
 async function StockContent({ searchParams }: StockPageProps) {
   await connection();
-  const user = await requirePermission('stock:read');
+  const user = await requireReadPermission('stock:read');
 
   const params = await searchParams;
   let locations;
@@ -57,10 +57,10 @@ async function StockContent({ searchParams }: StockPageProps) {
   return (
     <main className="page-shell">
       <div className="page-heading">
-        <div><p className="eyebrow">Inventory / Stock</p><h1>Stock on hand</h1><p className="page-description">View current quantities and record receipts, returns, sales, or approved inventory corrections at a selected location.</p></div>
+        <div><p className="eyebrow">Inventory / Stock</p><h1>Stock on hand</h1><p className="page-description">{user.publicDemo ? 'View fictional sample quantities by location.' : 'View current quantities and record receipts, returns, sales, or approved inventory corrections at a selected location.'}</p></div>
         <Link className="button button-secondary" href={`/activity?location=${encodeURIComponent(location.id)}`}>View movement activity <span aria-hidden="true">→</span></Link>
       </div>
-      <aside className="demo-notice" aria-label="Inventory information"><span className="notice-mark" aria-hidden="true">i</span><p><strong>Manual inventory demo.</strong> Quantity records only; no payment processing, point-of-sale integration, or accounting entries. Stock changes are attributed to your signed-in account.</p></aside>
+      <aside className="demo-notice" aria-label="Inventory information"><span className="notice-mark" aria-hidden="true">i</span><p><strong>{user.publicDemo ? 'Public employer demo.' : 'Manual inventory demo.'}</strong> {user.publicDemo ? 'Fictional sample data in read-only mode. No payment processing or accounting entries.' : 'Quantity records only; no payment processing, point-of-sale integration, or accounting entries. Stock changes are attributed to your signed-in account.'}</p></aside>
 
       <section className="catalog-panel stock-balance-panel" aria-labelledby="balance-heading">
         <div className="catalog-toolbar">
@@ -74,7 +74,7 @@ async function StockContent({ searchParams }: StockPageProps) {
           </form>
         </div>
         {stockItems.length === 0 ? (
-          <div className="empty-state"><div className="empty-icon" aria-hidden="true">▤</div><h3>No active products yet</h3><p>Add a product to begin tracking stock at {location.name}.</p><Link className="button button-primary" href="/products/new">Add a product</Link></div>
+          <div className="empty-state"><div className="empty-icon" aria-hidden="true">▤</div><h3>No active products yet</h3><p>{hasPermission(user.role, 'catalog:write') ? 'Add a product to begin tracking stock at ' + location.name + '.' : 'There are no active products at ' + location.name + '.'}</p>{hasPermission(user.role, 'catalog:write') && <Link className="button button-primary" href="/products/new">Add a product</Link>}</div>
         ) : (
           <div className="table-scroll"><table className="product-table stock-table"><caption className="sr-only">Current on-hand inventory and reorder status for {location.name}.</caption><thead><tr><th scope="col">Product</th><th scope="col">SKU</th><th scope="col">Current on hand</th><th scope="col">Reorder point</th><th scope="col">Status</th></tr></thead><tbody>
             {stockItems.map((item) => {
@@ -88,7 +88,7 @@ async function StockContent({ searchParams }: StockPageProps) {
       {hasPermission(user.role, 'stock:receive') || hasPermission(user.role, 'stock:sale') || hasPermission(user.role, 'stock:adjust') ? <section className="stock-entry-section" aria-labelledby="stock-entry-heading">
         <div className="section-heading"><div><p className="eyebrow">RECORD A CHANGE</p><h2 id="stock-entry-heading">Keep the movement history current.</h2></div><p>Every completed change is recorded with its reason, type, and time.</p></div>
         <StockForms locations={locations} products={products} selectedLocationId={location.id} receiveRequestId={receiveRequestId} saleRequestId={saleRequestId} returnRequestId={returnRequestId} adjustmentRequestId={adjustmentRequestId} canReceive={hasPermission(user.role, 'stock:receive')} canSell={hasPermission(user.role, 'stock:sale')} canAdjust={hasPermission(user.role, 'stock:adjust')} />
-      </section> : <p className="catalog-footnote">Your account has read-only stock access.</p>}
+      </section> : <p className="catalog-footnote">{user.publicDemo ? 'This public employer view cannot record stock changes.' : 'Your account has read-only stock access.'}</p>}
       <p className="catalog-footnote">Reorder point is compared with the current on-hand quantity at this selected location. “Current on hand” does not include reservations or open orders.</p>
     </main>
   );

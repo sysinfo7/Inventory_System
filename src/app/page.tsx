@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { connection } from 'next/server';
+import { isPublicDemoModeEnabled } from '@/lib/auth';
 
 const milestones = [
   { number: '01', title: 'Product catalog', description: 'Organize product identity, categories, prices, and reorder points.', status: 'Ready to explore', href: '/products', icon: '▤', ready: true },
@@ -6,14 +8,17 @@ const milestones = [
   { number: '03', title: 'Movement activity', description: 'Record receiving and manual sale deductions with a signed history.', status: 'Ready to explore', href: '/activity', icon: '↗', ready: true },
 ];
 
-export default function Home() {
+export default async function Home() {
+  // Read this server setting per request so a promoted build can change modes safely.
+  await connection();
+  const publicDemo = isPublicDemoModeEnabled();
   return (
     <main className="home-shell">
       <section className="hero-panel">
         <div className="hero-copy">
-          <p className="eyebrow"><span className="live-dot" aria-hidden="true" /> RETAIL INVENTORY / PROJECT FOUNDATION</p>
+          <p className="eyebrow"><span className="live-dot" aria-hidden="true" /> RETAIL INVENTORY / {publicDemo ? 'EMPLOYER DEMO' : 'PROJECT FOUNDATION'}</p>
           <h1>Know what you have.<br /><span>Track what changes.</span></h1>
-          <p className="hero-description">A carefully structured inventory system, built around clear product records and a dependable history of every stock change.</p>
+          <p className="hero-description">{publicDemo ? 'Explore a fictional retail inventory dataset across products, locations, supplier orders, and a traceable stock history. This public demo is read-only.' : 'A carefully structured inventory system, built around clear product records and a dependable history of every stock change.'}</p>
           <div className="hero-actions">
             <Link href="/products" className="button button-primary">Open product catalog <span aria-hidden="true">→</span></Link>
           </div>
@@ -49,7 +54,7 @@ export default function Home() {
         <div><span className="principle-icon" aria-hidden="true">↺</span><span><strong>Traceable changes</strong><small>Product edits join an audit trail</small></span></div>
         <div><span className="principle-icon" aria-hidden="true">◇</span><span><strong>Built with care</strong><small>Secure patterns and clear limits</small></span></div>
       </section>
-      <p className="home-disclaimer">The catalog, stock, and activity tools are available to signed-in inventory users.</p>
+      <p className="home-disclaimer">{publicDemo ? 'Employer demo: fictional data, public read-only access. Sign-in remains available for authorized inventory users.' : 'The catalog, stock, and activity tools are available to signed-in inventory users.'}</p>
     </main>
   );
 }
