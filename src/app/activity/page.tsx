@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
-import { listInventoryLocations, listStockActivity, listStockActivityActors } from '@/lib/db';
+import { databaseErrorSummary, listInventoryLocations, listStockActivity, listStockActivityActors } from '@/lib/db';
 import { requireReadPermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
@@ -57,8 +57,8 @@ async function ActivityContent({ searchParams }: ActivityPageProps) {
     activity = await listStockActivity({ locationId, movementType, search, actorId, fromDate: safeFromDate, toDate: safeToDate });
     if (user.publicDemo) activity = activity.map((movement) => ({ ...movement, actorName: 'Demo user' }));
   } catch (error) {
-    console.error('Activity read failed:', error instanceof Error ? error.name : 'unknown error');
-    return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Activity</p><h1>Activity is unavailable</h1><p>The movement history could not be loaded. Check the local database setup and refresh this page.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;
+    console.error('Activity read failed:', databaseErrorSummary(error));
+    return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Activity</p><h1>Activity is unavailable</h1><p>The movement history could not be loaded. Check the deployment database configuration and try again.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;
   }
   const hasFilters = Boolean(locationId || search || movementType !== 'all' || actorId || safeFromDate || safeToDate || reversedDateRange);
 

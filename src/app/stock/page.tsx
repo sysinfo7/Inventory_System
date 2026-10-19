@@ -3,7 +3,7 @@ import { connection } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { Suspense } from 'react';
 import { StockForms } from './stock-forms';
-import { listActiveStockProducts, listInventoryLocations, listStockItems } from '@/lib/db';
+import { databaseErrorSummary, listActiveStockProducts, listInventoryLocations, listStockItems } from '@/lib/db';
 import { requireReadPermission, hasPermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
@@ -31,7 +31,7 @@ async function StockContent({ searchParams }: StockPageProps) {
   try {
     [locations, products] = await Promise.all([listInventoryLocations(), listActiveStockProducts()]);
   } catch (error) {
-    console.error('Stock page setup failed:', error instanceof Error ? error.name : 'unknown error');
+    console.error('Stock page setup failed:', databaseErrorSummary(error));
     return <Unavailable />;
   }
 
@@ -45,7 +45,7 @@ async function StockContent({ searchParams }: StockPageProps) {
   try {
     stockItems = await listStockItems(location.id);
   } catch (error) {
-    console.error('Stock balance read failed:', error instanceof Error ? error.name : 'unknown error');
+    console.error('Stock balance read failed:', databaseErrorSummary(error));
     return <Unavailable />;
   }
   const lowCount = stockItems.filter((item) => BigInt(item.quantity) <= BigInt(item.reorderPoint)).length;
@@ -95,5 +95,5 @@ async function StockContent({ searchParams }: StockPageProps) {
 }
 
 function Unavailable() {
-  return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Stock</p><h1>Stock is unavailable</h1><p>The stock view could not be loaded. Check the local database setup and refresh this page.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;
+  return <main className="page-shell"><section className="unavailable-panel"><p className="eyebrow">Inventory / Stock</p><h1>Stock is unavailable</h1><p>The stock view could not be loaded. Check the deployment database configuration and try again.</p><Link className="button button-secondary" href="/">Back to overview</Link></section></main>;
 }

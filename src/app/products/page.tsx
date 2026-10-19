@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
-import { listCatalogProducts } from '@/lib/db';
+import { databaseErrorSummary, listCatalogProducts } from '@/lib/db';
 import { requireReadPermission, hasPermission } from '@/lib/auth';
 
 type QueryValue = string | string[] | undefined;
@@ -34,8 +34,8 @@ async function CatalogContent({ searchParams }: ProductsPageProps) {
   try {
     products = await listCatalogProducts(search, status);
   } catch (error) {
-    console.error('Catalog load failed:', error instanceof Error ? error.name : 'unknown error');
-    return <CatalogUnavailable message="The product list could not be loaded. Check the database setup steps, then refresh." />;
+    console.error('Catalog load failed:', databaseErrorSummary(error));
+    return <CatalogUnavailable message="The product list could not be loaded. Check the deployment database configuration and try again." />;
   }
 
   return (

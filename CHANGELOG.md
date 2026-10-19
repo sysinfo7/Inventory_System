@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-10-19
+
+### Fixed
+
+- Show deployment-focused database recovery guidance on catalog, stock, and activity read failures.
+- Add redacted database error diagnostics to server logs so hosted connection failures can be identified without logging database credentials.
+
 ## [1.7.2] - 2026-10-15
 
 ### Security

@@ -3,6 +3,21 @@ import { Pool } from 'pg';
 // The UI uses a separate, least-privilege login; DATABASE_URL is for migrations only.
 const globalForInventory = globalThis as typeof globalThis & { inventoryPool?: Pool };
 
+/** Log enough database context to diagnose hosted failures without exposing credentials. */
+export function databaseErrorSummary(error: unknown) {
+  if (!(error instanceof Error)) return { name: 'UnknownError' };
+
+  const databaseError = error as Error & { code?: unknown };
+  const safeMessage = error.message
+    .replace(/postgres(?:ql)?:\/\/[^\s"'`]+/gi, '[database URL redacted]')
+    .slice(0, 240);
+  return {
+    name: error.name,
+    ...(typeof databaseError.code === 'string' ? { code: databaseError.code } : {}),
+    ...(safeMessage ? { message: safeMessage } : {}),
+  };
+}
+
 export function getDbPool() {
   const connectionString = process.env.APP_DATABASE_URL;
   if (!connectionString) {
