@@ -1,6 +1,6 @@
 # Database setup and operations
 
-These instructions cover the local PostgreSQL 17 development database. The web app includes a product catalog, stock workflow, movement activity, supplier purchasing, authentication, and role checks. Migrations 008–010 add application identities/sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds login throttling; migration 014 revokes sessions after role changes and deactivation; migration 016 logs password changes and revokes all sessions; migrations 019–020 add supplier and purchase-order workflows with atomic inventory receipts; migration 021 adds a restricted helper required by purchasing validation; migration 022 adds fictional employer-demo supplier/order examples and an inactive synthetic audit actor. Do not use these local-development steps as hosted setup instructions; see [the separate Vercel and Neon employer-demo guide](DEPLOYMENT_VERCEL_NEON.md).
+These instructions cover the local PostgreSQL 17 development database. The web app includes a product catalog, stock workflow, movement activity, supplier purchasing, authentication, and role checks. Migrations 008–010 add application identities/sessions, authenticated audit attribution, and actor foreign keys; migration 011 adds login throttling; migration 014 revokes sessions after role changes and deactivation; migration 016 logs password changes and revokes all sessions; migrations 019–020 add supplier and purchase-order workflows with atomic inventory receipts; migration 021 adds a restricted helper required by purchasing validation; migration 022 adds fictional employer-demo supplier/order examples and an inactive synthetic audit actor; migration 023 assigns categories to the fictional demo products through the audited catalog function. Do not use these local-development steps as hosted setup instructions; see [the separate Vercel and Neon employer-demo guide](DEPLOYMENT_VERCEL_NEON.md).
 
 For an employer-facing field/key diagram and explanation of the relational model, see [EMPLOYER_DATABASE_DESIGN.md](EMPLOYER_DATABASE_DESIGN.md).
 
@@ -50,6 +50,8 @@ The current migration files are:
 | `db/019_purchasing_tables.sql` | Creates normalized suppliers, purchase orders, lines, receipts, receipt lines, purchasing audits, and immutable-history guards. |
 | `db/020_purchasing_functions.sql` | Adds audited supplier/order functions, atomic receipt-to-stock movement, server-role checks, and function-only runtime write grants. |
 | `db/021_jsonb_object_length_compatibility.sql` | Adds a restricted compatibility helper required by the JSONB line validators in migration 020. |
+| `db/022_seed_employer_demo_purchasing.sql` | Seeds fictional purchasing examples and an inactive synthetic audit actor for isolated employer-demo databases. |
+| `db/023_categorize_demo_products.sql` | Adds reusable Coffee & Tea, Snacks, and Drinkware categories and assigns them to the demo products through the audited product-save function. |
 
 For an existing checkout/database, the local upgrade wrapper starts PostgreSQL if needed, applies any unapplied migrations, and checks the connection:
 

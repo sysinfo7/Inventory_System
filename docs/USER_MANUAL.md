@@ -6,7 +6,7 @@ The app includes a local product catalog, multi-location stock page, supplier di
 
 An optional public employer-demo mode is disabled by default. For a local preview, set `$env:PUBLIC_DEMO_MODE = 'true'` in PowerShell before `npm run dev`, then sign out or use a private browser window. Anonymous visitors can browse the product catalog, stock, activity, supplier names, and submitted/received purchase orders. Supplier contact details and private notes are hidden, staff names are anonymized, and draft/cancelled orders are not listed. All changes and account-management screens still require a signed-in role. Before any public deployment, use an isolated database populated only with fictional records; enabling this flag publishes its selected inventory data.
 
-For the hosted employer demo, use the separate [Vercel and Neon deployment guide](DEPLOYMENT_VERCEL_NEON.md). Migration 022 adds a fictional supplier, a completed bottle receipt, and an open coffee order to a clean database; it does not copy local data.
+For the hosted employer demo, use the separate [Vercel and Neon deployment guide](DEPLOYMENT_VERCEL_NEON.md). Migrations 022–023 add fictional purchasing examples and assign Coffee & Tea, Snacks, and Drinkware categories to the sample products; they do not copy local data.
 
 Migrations through 021 are applied to the local database after the October 14 clean reset, and the rollback-only purchasing verifier passed. The reset seeded two locations, three fictional products, and eight sample movements. The one-off guide receipt shown in the screenshots was removed by the reset and is no longer in the current activity history. The live purchasing walkthrough then added a fictional supplier and completed `PO-00000007` for five coffee units delivered to Demo Outlet: two units were recorded in the first receipt and three in the second. Demo Outlet now has 15 coffee units; Demo Store remains at 7. The two receipt movements are linked to the order and attributed to the signed-in administrator. Seed movement actors are blank; new app-recorded changes identify the signed-in user. A separate sample order, `PO-00000018`, contains three fictional Summit Steel Water Bottles for Demo Store with an expected delivery date of October 23, 2026. It is submitted and ready to receive; its 0/3 quantity progress confirms stock has not changed. The manual now includes completed-order, draft, submitted-order, receipt-form, and order-register screenshots.
 
@@ -52,7 +52,7 @@ docker compose stop
 2. Search by product name or SKU and choose Active products, Inactive products, or All statuses.
 3. Select **Add product** and enter a unique SKU, product name, optional category and sale price, reorder point, and status.
 4. To edit or deactivate, select **Edit** on a product. Set its status to Inactive to keep it out of the active list while preserving the product and its history.
-5. Save the form. Duplicate SKUs, invalid prices or reorder points, and unavailable categories are rejected with a useful message.
+5. Save the form. Duplicate SKUs, invalid prices or reorder points, and unavailable categories are rejected with a useful message. The public employer demo uses normalized Coffee & Tea, Snacks, and Drinkware categories to organize its sample catalog.
 
 Sale prices are decimal amounts; no currency has been configured. Editing catalog details never creates or changes stock. Stock changes are recorded as movement history through the separate stock workflow.
 

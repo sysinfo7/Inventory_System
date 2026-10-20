@@ -105,15 +105,29 @@ try {
     const demo = await admin.query(`
       SELECT
         EXISTS (SELECT 1 FROM schema_migrations WHERE version='022') AS fixture_migration,
+        EXISTS (SELECT 1 FROM schema_migrations WHERE version='023') AS category_migration,
         (SELECT count(*)::int FROM app_users) AS user_count,
         (SELECT count(*)::int FROM app_users WHERE id <> '73000000-0000-4000-8000-000000000001'
           OR email <> 'demo-system@inventory-demo.invalid' OR active OR role <> 'viewer') AS unexpected_users,
         (SELECT count(*)::int FROM products) AS product_count,
-        (SELECT count(*)::int FROM products WHERE NOT active OR category_id IS NOT NULL OR
-          (sku='DEMO-COFFEE-001' AND (name<>'Northstar Coffee Beans, 12 oz' OR reorder_point<>5 OR sale_price<>14.99)) OR
-          (sku='DEMO-SNACK-001' AND (name<>'Crisp Orchard Trail Mix, 8 oz' OR reorder_point<>8 OR sale_price<>6.49)) OR
-          (sku='DEMO-BOTTLE-001' AND (name<>'Summit Steel Water Bottle, 24 oz' OR reorder_point<>3 OR sale_price<>18.00)) OR
+        (SELECT count(*)::int FROM categories) AS category_count,
+        (SELECT count(*)::int FROM categories WHERE name NOT IN ('Coffee & Tea','Snacks','Drinkware')) AS unexpected_categories,
+        (SELECT count(*)::int FROM products AS product WHERE NOT active OR
+          (sku='DEMO-COFFEE-001' AND (name<>'Northstar Coffee Beans, 12 oz' OR reorder_point<>5 OR sale_price<>14.99 OR
+            (SELECT category.name FROM categories AS category WHERE category.id=product.category_id) IS DISTINCT FROM
+              CASE WHEN EXISTS (SELECT 1 FROM schema_migrations WHERE version='023') THEN 'Coffee & Tea' ELSE NULL END)) OR
+          (sku='DEMO-SNACK-001' AND (name<>'Crisp Orchard Trail Mix, 8 oz' OR reorder_point<>8 OR sale_price<>6.49 OR
+            (SELECT category.name FROM categories AS category WHERE category.id=product.category_id) IS DISTINCT FROM
+              CASE WHEN EXISTS (SELECT 1 FROM schema_migrations WHERE version='023') THEN 'Snacks' ELSE NULL END)) OR
+          (sku='DEMO-BOTTLE-001' AND (name<>'Summit Steel Water Bottle, 24 oz' OR reorder_point<>3 OR sale_price<>18.00 OR
+            (SELECT category.name FROM categories AS category WHERE category.id=product.category_id) IS DISTINCT FROM
+              CASE WHEN EXISTS (SELECT 1 FROM schema_migrations WHERE version='023') THEN 'Drinkware' ELSE NULL END)) OR
           sku NOT IN ('DEMO-COFFEE-001','DEMO-SNACK-001','DEMO-BOTTLE-001')) AS unexpected_products,
+        (SELECT count(*)::int FROM inventory_audit_log) AS inventory_audit_count,
+        (SELECT count(*)::int FROM inventory_audit_log WHERE
+          (actor_id IS NOT NULL AND actor_id <> '73000000-0000-4000-8000-000000000001') OR NOT (
+          (entity_type='product' AND action IN ('insert','update')) OR
+          (entity_type='stock_movement' AND action='movement'))) AS unexpected_inventory_audit,
         (SELECT count(*)::int FROM locations) AS location_count,
         (SELECT count(*)::int FROM locations WHERE name NOT IN ('Demo Store','Demo Outlet')) AS unexpected_locations,
         (SELECT count(*)::int FROM suppliers) AS supplier_count,
@@ -138,7 +152,10 @@ try {
     `);
     const current = demo.rows[0];
     if (!current.fixture_migration || current.user_count !== 1 || current.unexpected_users !== 0
-        || current.product_count !== 3 || current.unexpected_products !== 0
+        || current.product_count !== 3 || current.category_count !== (current.category_migration ? 3 : 0)
+        || current.unexpected_categories !== 0 || current.unexpected_products !== 0
+        || current.inventory_audit_count !== (current.category_migration ? 15 : 12)
+        || current.unexpected_inventory_audit !== 0
         || current.location_count !== 2 || current.unexpected_locations !== 0
         || current.supplier_count !== 1 || current.unexpected_suppliers !== 0
         || current.order_count !== 2 || current.unexpected_orders !== 0

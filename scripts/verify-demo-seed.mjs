@@ -18,6 +18,35 @@ try {
     throw new Error('The expected fictional demo products are missing or unexpected products are present.');
   }
 
+  const categories = await client.query(`
+    SELECT product.sku, category.name AS category
+    FROM products AS product
+    LEFT JOIN categories AS category ON category.id=product.category_id
+    WHERE product.sku IN ('DEMO-COFFEE-001','DEMO-SNACK-001','DEMO-BOTTLE-001')
+  `);
+  const expectedCategories = new Map([
+    ['DEMO-COFFEE-001','Coffee & Tea'],
+    ['DEMO-SNACK-001','Snacks'],
+    ['DEMO-BOTTLE-001','Drinkware'],
+  ]);
+  if (categories.rowCount !== expectedCategories.size
+      || categories.rows.some((row) => expectedCategories.get(row.sku) !== row.category)) {
+    throw new Error('The fictional demo products must each have their expected category.');
+  }
+
+  const categoryAudit = await client.query(`
+    SELECT count(*)::int AS events
+    FROM inventory_audit_log AS audit
+    JOIN products AS product ON product.id=audit.entity_id
+    WHERE audit.entity_type='product' AND audit.action='update'
+      AND product.sku IN ('DEMO-COFFEE-001','DEMO-SNACK-001','DEMO-BOTTLE-001')
+      AND audit.before_data->>'category_id' IS NULL
+      AND audit.after_data->>'category_id'=product.category_id::text
+  `);
+  if (categoryAudit.rows[0].events !== expectedCategories.size) {
+    throw new Error('The demo category assignments must be recorded in the product audit trail.');
+  }
+
   const actors = await client.query(`
     SELECT id,email,role,active,password_change_required
     FROM app_users

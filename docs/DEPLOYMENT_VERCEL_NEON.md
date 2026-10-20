@@ -2,7 +2,7 @@
 
 This guide deploys the Next.js app to Vercel and a separate PostgreSQL database to Neon. It is for a portfolio demonstration with fictional records only, not business or production inventory. `PUBLIC_DEMO_MODE=true` publishes selected catalog, stock, activity, supplier-name, and submitted/received purchase-order rows without sign-in. The app blocks anonymous writes, but every row returned by those read pages is public.
 
-The database migrations seed two fictional locations, three products, stock activity, an inactive synthetic audit actor, a fictional supplier, one completed order with a linked receipt, and one submitted order. Do not import the local database or its backup. Keep the local Docker database private.
+The database migrations seed two fictional locations, three categorized retail products (Coffee & Tea, Snacks, and Drinkware), stock activity, an inactive synthetic audit actor, a fictional supplier, one completed order with a linked receipt, and one submitted order. Do not import the local database or its backup. Keep the local Docker database private.
 
 ## 1. Create a dedicated Neon project
 

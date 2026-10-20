@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-19
+
+### Added
+
+- Add Coffee & Tea, Snacks, and Drinkware categories to the fictional employer-demo catalog through an audited, idempotent migration.
+- Verify demo category assignments in the guarded Neon setup and seed checks.
+
 ## [1.7.3] - 2026-10-19
 
 ### Fixed
